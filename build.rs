@@ -65,6 +65,10 @@ fn windows_resource() {
     let version = env!("CARGO_PKG_VERSION");
     let parts = format!("{},{},{},0", env!("CARGO_PKG_VERSION_MAJOR"), env!("CARGO_PKG_VERSION_MINOR"), env!("CARGO_PKG_VERSION_PATCH"));
     fs::write(&script, format!(r#"1 ICON "{icon}"
+STRINGTABLE
+BEGIN
+    101 "RenderLatch"
+END
 1 VERSIONINFO
 FILEVERSION {parts}
 PRODUCTVERSION {parts}

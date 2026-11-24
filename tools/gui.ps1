@@ -50,6 +50,13 @@ if ([IO.File]::Exists($icon)) {
     $ui.AppLogo.Source = $window.Icon
 }
 if ($Standalone) { $ui.DeveloperTools.Visibility = 'Collapsed' }
+if ([IO.File]::Exists($forge)) {
+    Add-Type -Path (Join-Path $PSScriptRoot 'TaskbarIdentity.cs')
+    $window.Add_SourceInitialized({
+        $handle = [Windows.Interop.WindowInteropHelper]::new($window).Handle
+        [RenderLatch.TaskbarIdentity]::Apply($handle, $forge)
+    })
+}
 
 function Get-OneClickPath {
     foreach ($candidate in @($state.OneClick, $managedOneClick, $defaultOneClick)) {
