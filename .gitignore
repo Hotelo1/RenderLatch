@@ -1,0 +1,13 @@
+# build
+/target
+/target/pgo
+/forge.exe
+/tools/dlss5oneclick.exe
+/dist
+
+# Downloaded third-party assets and generated manifests
+/runtime/
+
+# perfis gerados localmente
+*.profraw
+*.profdata

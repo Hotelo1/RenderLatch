@@ -1,0 +1,115 @@
+<img src="assets/renderlatch.png" width="76" alt="RenderLatch icon">
+
+# RenderLatch
+
+RenderLatch is a Windows desktop tool for configuring NVIDIA DLSS Neural Rendering, upscaling, and frame generation in compatible PC games. It detects installed games, previews changes before applying them, and keeps a record of the files it manages so you can undo an installation.
+
+[Download for Windows x64](https://github.com/Hotelo1/RenderLatch/releases/latest/download/RenderLatch-windows-x64.exe) · [Release notes and checksums](https://github.com/Hotelo1/RenderLatch/releases)
+
+![RenderLatch previewing a DirectX 12 graphics profile for PEAK](assets/renderlatch-preview.png)
+
+## What you can do
+
+- Find games installed through Steam, Epic Games, and GOG, or select an executable manually.
+- Set up OptiScaler for games with native DLSS. For eligible games without native DLSS, use the Feeder route through DLSS5oneclick.
+- Configure upscaling and frame generation independently in DirectX 12. Supported options depend on the route, GPU, and game.
+- Preview the target folder, selected options, DLLs, and expected changes before applying them.
+- Inspect your GPU, VRAM, driver, CPU, memory, and PCIe connection. Apply a per-PC profile where the selected route supports one.
+- Restore files managed by RenderLatch and undo supported resolution changes.
+
+## Requirements
+
+| Feature | Requirements |
+| --- | --- |
+| Desktop app | Windows 10 or 11 on x64 with the system Windows PowerShell 5.1 and WPF. Internet access is needed to download the optional graphics kit. |
+| DLSS Neural Rendering | The supported configuration is an NVIDIA GeForce RTX 50 Series GPU, a compatible NVIDIA driver, and an authentic NVIDIA-signed **nvngx_dlssnr.dll** imported from a compatible installation. |
+| OptiScaler graphics controls | A compatible DirectX 12 game or a supported 64-bit DirectX 12 Feeder installation. The game or Feeder must supply the inputs required by the selected mode. |
+| NVIDIA DLSS Frame Generation | RTX 40 or 50 Series for the option exposed by RenderLatch. Multi Frame Generation availability depends on GPU support and the in-game backend. |
+| AMD FSR and Intel XeSS | FSR 3.1, FSR 4, and XeSS options depend on the installed backend and driver. The FSR 4 profiles in this kit require a compatible Radeon RX 9000 GPU. |
+
+Compatibility varies by game, rendering API, GPU, and other installed mods. Use graphics injection only in games and modes that allow it. Keep anti-cheat settings intact. There is no FPS guarantee.
+
+## Quick start
+
+1. Download **RenderLatch-windows-x64.exe** from Releases and double-click it. The app runs without a separate install or source checkout.
+2. Open **Ferramentas** (**Tools**) and choose **Baixar kit** (**Download kit**). This downloads about 500 MB of pinned OptiScaler and NVIDIA Streamline packages. The application executable itself contains the RenderLatch interface and tools. Third-party binaries are fetched separately or imported locally.
+3. Choose **Importar modelo NVIDIA…** (**Import NVIDIA model**) and select **nvngx_dlssnr.dll** from a compatible installation you have access to. RenderLatch checks the NVIDIA signature and file size.
+4. Open **Jogos** (**Games**) and choose **Detectar jogos** (**Find games**). If your game is missing, expand **Selecionar manualmente** (**Select manually**) and browse to the game's folder or actual executable.
+5. Review the route and choose the desired graphics settings. Select **Ver prévia** (**Preview**) and review the **Atividade** (**Activity**) panel. **Ampliar** expands the log.
+6. Close the game, choose **Aplicar instalação** (**Apply installation**), and reopen the game. When OptiScaler is installed, press **Insert** to open its in-game menu.
+
+The desktop UI is currently in Brazilian Portuguese. The steps above give the corresponding English labels.
+
+### Verify a download
+
+Download the executable and its **.sha256** file from the same release. Compare the published hash with the SHA-256 shown by PowerShell.
+
+~~~powershell
+Get-FileHash .\RenderLatch-windows-x64.exe -Algorithm SHA256
+~~~
+
+The initial Windows release has no Authenticode signature. The checksum helps verify that your file matches the GitHub release asset.
+
+## Installation routes
+
+### Games with native DLSS
+
+Select the game and use the automatically detected **OptiScaler** route. For DirectX 12, start with **Manter atual** (**Keep current**) or choose an upscaler and Frame Generation backend. Enable the appropriate graphics option inside the game when required. A game can offer DLSS Super Resolution without offering native DLSS Frame Generation.
+
+### Games without native DLSS
+
+1. Download the external installer from [DLSS5oneclick Releases](https://github.com/faisalkindi/DLSS5oneclick/releases) and link it under **Ferramentas → DLSS5oneclick → Vincular executável**. RenderLatch remembers the location.
+2. Select the game, preview the **Feeder** installation, and apply. Start the game and reach its menu so the Feeder can record the renderer. Close the game again.
+3. For a supported 64-bit DirectX 12 game, enable **Adicionar menu OptiScaler ao Feeder (DX12)**. Select the graphics options, generate a fresh preview, and apply it. RenderLatch stores the original ReShade loader and RenoDX add-on so it can restore them later.
+4. In the OptiScaler menu, use **OptiFG (Upscaler)** as the Frame Generation input when the game has no native FG input. Choose a compatible **FG Output**. Use **Save INI** and restart the game when changing the output.
+
+The Feeder supplies a synthetic DLSS input using frame data from the game. OptiFG is experimental. HUD artifacts, intermittent interpolation, or an unavailable option are possible. The PEAK DirectX 12 setup has been tested with DLSS FG on an RTX 5060. That result does not establish compatibility with other games or GPUs.
+
+## Performance and recovery
+
+**Otimizar para este PC** (**Optimize for this PC**) applies a hardware-based configuration to an existing installation. The OptiScaler route adjusts the neural model's working scale. The Feeder route can change its DirectX 11 working resolution and supports a reversible resolution profile for selected DirectX 12 Unity games. Unsupported combinations report that there is no applicable adjustment.
+
+The optional source-only native build compiles the RenderLatch executable for the current CPU. The NVIDIA model, GPU driver, and third-party DLLs remain the upstream binaries. For meaningful performance comparisons, use the same scene, resolution, and settings before and after each change.
+
+Use **Manutenção → Desfazer instalação** (**Maintenance → Undo installation**) to restore an OptiScaler installation. In Feeder + OptiScaler mode, this returns the game to the original Feeder arrangement. A subsequent Feeder uninstall uses DLSS5oneclick, which can leave ReShade files in place. **Restaurar resolução** (**Restore resolution**) reverses the supported Unity resolution adjustment. Keep the **_dlss5forge** backup directory while the mod is installed.
+
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| No games are detected | Choose **Selecionar manualmente** and select the actual game executable. |
+| The kit is incomplete | Download the kit, then import a signed **nvngx_dlssnr.dll**. Do not substitute **nvngx_dlss.dll** or **nvngx_dlssd.dll** for the model. |
+| Preview is ready, but Apply is disabled | Generate a fresh preview after changing the game or any installation option. |
+| The OptiScaler menu does not open | Confirm the selected route and renderer, restart the game, then press **Insert**. Feeder-only ReShade uses **Home**. |
+| OptiFG shows **OFF** | Check that the upscaler is active and review **OptiScaler.log** and **dlss5-feed.log** beside the game executable. Some builds show a native DLSSG detection counter even when OptiFG is supplying frames. Streamline interpolation messages give better evidence for the NVIDIA output. |
+| The game starts incorrectly after applying changes | Close it and use **Desfazer instalação**. Check for existing graphics wrapper DLLs before trying again. |
+
+When filing an issue, include the game and build, renderer, GPU and driver, selected route, graphics options, and relevant log lines. Remove identifying paths and personal information from logs before posting them.
+
+## Build from source
+
+Use Windows x64, stable Rust with the **x86_64-pc-windows-msvc** target, and Visual Studio Build Tools with the C++ workload and Windows SDK. The SDK resource compiler embeds the Windows icon and version metadata.
+
+~~~powershell
+cargo test --locked
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build-release.ps1
+~~~
+
+The packaging script writes **RenderLatch-windows-x64.exe** and its SHA-256 checksum to **dist/**. It uses the x64 CPU baseline for distribution. To build the local development executable for your CPU, run **build.ps1** from a source checkout. **INICIAR.cmd** opens the source checkout's interface.
+
+The release uses Windows PowerShell and WPF from Windows. It extracts its embedded UI assets to **%LOCALAPPDATA%\RenderLatch\app\<version>** and reads downloaded graphics dependencies from **%LOCALAPPDATA%\RenderLatch\runtime**. Game backups live beside the affected game executable. The build does not package downloaded runtimes, proprietary models, or the OneClick binary.
+
+### Publish a release
+
+Update the version in **Cargo.toml** and **Cargo.lock**, commit the change, then push the matching **vX.Y.Z** tag. The [Windows release workflow](.github/workflows/release.yml) runs tests, builds the standalone Windows executable, and publishes the executable and checksum. A manual workflow run builds downloadable artifacts without publishing a release.
+
+~~~powershell
+git tag v0.1.1
+git push origin v0.1.1
+~~~
+
+## Acknowledgments
+
+RenderLatch integrates work from [OptiScaler](https://github.com/optiscaler/OptiScaler), the [Dagherbou DLSS-NR fork](https://github.com/Dagherbou/OptiScaler_DLSSNR), the [DLSS-NR PreSR Multipass fork](https://github.com/jlrouzies-fr/OptiScaler-DLSSNR-PreSR-Multipass), [DLSS5-Feeder](https://github.com/jlrouzies-fr/DLSS5-Feeder), [DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick), [ReShade](https://reshade.me/), [RenoDX](https://github.com/clshortfuse/renodx), and [NVIDIA Streamline](https://github.com/NVIDIA-RTX/Streamline).
+
+RenderLatch is an independent project. NVIDIA DLSS, AMD FSR, and Intel XeSS belong to their respective owners. Third-party components remain subject to their own licenses. This repository currently has no separate open-source license.
