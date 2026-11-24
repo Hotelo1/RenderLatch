@@ -108,6 +108,14 @@ git tag v0.1.1
 git push origin v0.1.1
 ~~~
 
+If hosted Actions is unavailable, build on a Windows x64 machine from the tagged source and upload the two assets with the [GitHub CLI](https://cli.github.com/). Confirm that a release for the tag does not already exist before using this fallback.
+
+~~~powershell
+git switch --detach v0.1.1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build-release.ps1
+gh release create v0.1.1 dist/RenderLatch-windows-x64.exe dist/RenderLatch-windows-x64.exe.sha256 --verify-tag --generate-notes
+~~~
+
 ## Acknowledgments
 
 RenderLatch integrates work from [OptiScaler](https://github.com/optiscaler/OptiScaler), the [Dagherbou DLSS-NR fork](https://github.com/Dagherbou/OptiScaler_DLSSNR), the [DLSS-NR PreSR Multipass fork](https://github.com/jlrouzies-fr/OptiScaler-DLSSNR-PreSR-Multipass), [DLSS5-Feeder](https://github.com/jlrouzies-fr/DLSS5-Feeder), [DLSS5oneclick](https://github.com/faisalkindi/DLSS5oneclick), [ReShade](https://reshade.me/), [RenoDX](https://github.com/clshortfuse/renodx), and [NVIDIA Streamline](https://github.com/NVIDIA-RTX/Streamline).
