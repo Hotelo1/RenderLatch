@@ -21,10 +21,13 @@ param(
     [string]$Model = "",
     [switch]$ImportOnly,
     [switch]$WithStreamline,
+    [switch]$Complete,
     [switch]$Force
 )
 
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+. (Join-Path $PSScriptRoot 'kit-download.ps1')
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
@@ -35,25 +38,6 @@ $Dir = (Resolve-Path $Dir).Path
 function Ok($t)   { Write-Host "      OK  $t" -ForegroundColor Green }
 function Warn($t) { Write-Host "      !   $t" -ForegroundColor Yellow }
 function Info($t) { Write-Host "      ..  $t" -ForegroundColor DarkGray }
-
-function Get-Zip([string]$url, [string]$name) {
-    $path = Join-Path $cache $name
-    if ((Test-Path $path) -and -not $Force) {
-        Info "cache: $name"
-        return $path
-    }
-    Info "baixando $name"
-    $pending = "$path.$PID.download"
-    try {
-        curl.exe --fail --location --silent --show-error --output $pending $url
-        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $pending)) { throw "download falhou: $url" }
-        Move-Item -LiteralPath $pending -Destination $path -Force
-    } finally {
-        if (Test-Path -LiteralPath $pending) { Remove-Item -LiteralPath $pending -Force }
-    }
-    Ok ("{0} ({1:N0} MB)" -f $name, ((Get-Item $path).Length / 1MB))
-    return $path
-}
 
 function Extract-Entry([string]$zipPath, [string]$entry, [string]$dest) {
     $z = [IO.Compression.ZipFile]::OpenRead($zipPath)
@@ -99,23 +83,20 @@ Write-Host "  destino: $Dir"
 Write-Host ""
 
 # ------------------------------------------------------------------ OptiScaler
-$optiZip = Get-Zip `
-    "https://github.com/Dagherbou/OptiScaler_DLSSNR/releases/download/$OptiTag/$OptiAsset" `
-    "optiscaler-dlssnr-$OptiTag.zip"
-if ($OptiTag -eq 'v0.2.0-dlssnr' -and $OptiAsset -eq 'OptiScaler-DLSSNR-v0.2.0.zip' -and
-    (Get-FileHash -LiteralPath $optiZip -Algorithm SHA256).Hash -ne '8EECE7A4D7DE6DE5917F0C99AC60540B2D77022E7699BBA717B0A6D9E1829BCE') {
-    throw 'SHA-256 inesperado no kit OptiScaler. Atualize o cache com -Force.'
+$optiHash = if ($OptiTag -eq 'v0.2.0-dlssnr' -and $OptiAsset -eq 'OptiScaler-DLSSNR-v0.2.0.zip') {
+    '8EECE7A4D7DE6DE5917F0C99AC60540B2D77022E7699BBA717B0A6D9E1829BCE'
 }
+if ($Complete) { Info '[1/4] OptiScaler e bibliotecas de upscaling e Frame Generation' }
+$optiZip = Get-KitAsset `
+    "https://github.com/Dagherbou/OptiScaler_DLSSNR/releases/download/$OptiTag/$OptiAsset" `
+    (Join-Path $cache "optiscaler-dlssnr-$OptiTag.zip") $optiHash -Force:$Force
 
 $feederTag = 'v0.8.93'
 $feederAsset = "OptiScaler-NR-$feederTag.zip"
-$feederZip = Get-Zip `
-    "https://github.com/jlrouzies-fr/OptiScaler-DLSSNR-PreSR-Multipass/releases/download/$feederTag/$feederAsset" `
-    $feederAsset
 $feederHash = '8003065D88813B342049B869E8C894F8771C58F3D1A630DDF42FABD5C9D2F5FC'
-if ((Get-FileHash -LiteralPath $feederZip -Algorithm SHA256).Hash -ne $feederHash) {
-    throw "SHA-256 inesperado: $feederAsset. Tente atualizar o kit com -Force."
-}
+$feederZip = Get-KitAsset `
+    "https://github.com/jlrouzies-fr/OptiScaler-DLSSNR-PreSR-Multipass/releases/download/$feederTag/$feederAsset" `
+    (Join-Path $cache $feederAsset) $feederHash -Force:$Force
 foreach ($entry in @('OptiScaler.dll', 'OptiScaler.ini')) {
     if (-not (Extract-Entry $feederZip $entry (Join-Path $Dir "feeder\$entry"))) {
         throw "Arquivo ausente no kit Feeder: $entry"
@@ -139,7 +120,7 @@ $map = @(
 $rows = @()
 foreach ($m in $map) {
     $dest = Join-Path $Dir $m.dest
-    if (-not (Extract-Entry $optiZip $m.entry $dest)) { Warn "ausente no zip: $($m.entry)"; continue }
+    if (-not (Extract-Entry $optiZip $m.entry $dest)) { throw "Arquivo ausente no kit OptiScaler: $($m.entry)" }
     $i = Get-Item $dest
     $rows += [pscustomobject]@{
         Arquivo = $m.dest
@@ -149,8 +130,41 @@ foreach ($m in $map) {
     }
 }
 
-if ($WithStreamline) {
+if ($WithStreamline -or $Complete) {
+    if ($Complete) { Info '[2/4] NVIDIA Streamline e DLSS Frame Generation' }
     & (Join-Path $PSScriptRoot 'fetch-runtime.ps1') -Dir (Split-Path $Dir -Parent) -Force:$Force
+}
+
+$modelSource = 'Local NVIDIA model'
+if ($Complete) {
+    Info '[3/4] Modelo NVIDIA DLSS Neural Rendering'
+    if ([IO.File]::Exists($modelDest) -and (Get-Item -LiteralPath $modelDest).Length -ge 150MB -and
+        (Sig $modelDest) -eq 'NVIDIA valida') {
+        Ok 'Modelo NVIDIA assinado já disponível.'
+    } else {
+        $modelSource = 'RankFTW/rhi-repo dlssnr-310.9.16-nvidia'
+        $modelZip = Get-KitAsset `
+            'https://github.com/RankFTW/rhi-repo/releases/download/dlssnr-310.9.16-nvidia/nvngx_dlssnr_310.9.16-nvidia.zip' `
+            (Join-Path $cache 'nvngx_dlssnr-dlssnr-310.9.16-nvidia.zip') `
+            '5277355F0578D36F2A25413D8C7FF4C6F9966CEA5BAD714305F23B20173E09F6' -Force:$Force
+        $pendingModel = "$modelDest.$PID.dll"
+        try {
+            if (-not (Extract-Entry $modelZip 'nvngx_dlssnr.dll' $pendingModel) -or
+                (Get-Item -LiteralPath $pendingModel).Length -lt 150MB -or (Sig $pendingModel) -ne 'NVIDIA valida') {
+                throw 'O modelo baixado não passou na verificação da assinatura NVIDIA.'
+            }
+            Move-Item -LiteralPath $pendingModel -Destination $modelDest -Force
+        } finally {
+            if ([IO.File]::Exists($pendingModel)) { Remove-Item -LiteralPath $pendingModel -Force }
+        }
+        Ok 'Modelo NVIDIA verificado e instalado.'
+    }
+
+    Info '[4/4] DLSS5oneclick'
+    $oneClickPath = Join-Path (Split-Path $Dir -Parent) 'tools\dlss5oneclick.exe'
+    $oneClick = Get-KitAsset `
+        'https://github.com/faisalkindi/DLSS5oneclick/releases/download/v0.14.37/dlss5oneclick.exe' `
+        $oneClickPath '557A50F83D3BDCBAF91B54AFC141345822896DCD2463BE22AFF40EA60F9B25EC' -Force:$Force
 }
 
 if (Test-Path $modelDest) {
@@ -185,17 +199,17 @@ $manifest = [pscustomobject]@{
         sha256_zip = $feederHash
     }
     modelo = [pscustomobject]@{
-        fonte = 'Local NVIDIA model'
+        fonte = $modelSource
         dll   = 'nvngx_dlssnr.dll'
     }
     arquivos = $rows
+    oneclick = $(if ($Complete) { @{ versao = 'v0.14.37'; arquivo = $oneClick } })
     requer = "RTX 50 + jogo que ja usa DLSS (DX11/DX12/Vulkan)"
 }
 $manifest | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $Dir "manifest.json") -Encoding UTF8
 Ok "manifesto: $(Join-Path $Dir 'manifest.json')"
 
 Write-Host ""
-Write-Host "  Agora aplique num jogo:" -ForegroundColor White
-Write-Host "    .\forge.exe dlss5 --game `"D:\...\Jogo`"" -ForegroundColor Gray
+if ($Complete) { Ok 'Kit completo. Selecione um jogo para ver a prévia da instalação.' }
 Write-Host ""
 Write-Host ""

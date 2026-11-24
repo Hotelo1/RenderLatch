@@ -22,7 +22,7 @@ RenderLatch is a Windows desktop tool for configuring NVIDIA DLSS Neural Renderi
 | Feature | Requirements |
 | --- | --- |
 | Desktop app | Windows 10 or 11 on x64 with the system Windows PowerShell 5.1 and WPF. Internet access is needed to download the optional graphics kit. |
-| DLSS Neural Rendering | The supported configuration is an NVIDIA GeForce RTX 50 Series GPU, a compatible NVIDIA driver, and an authentic NVIDIA-signed **nvngx_dlssnr.dll** imported from a compatible installation. |
+| DLSS Neural Rendering | The supported configuration is an NVIDIA GeForce RTX 50 Series GPU, a compatible NVIDIA driver, and an authentic NVIDIA-signed **nvngx_dlssnr.dll** installed by the kit or imported from a compatible installation. |
 | OptiScaler graphics controls | A compatible DirectX 12 game or a supported 64-bit DirectX 12 Feeder installation. The game or Feeder must supply the inputs required by the selected mode. |
 | NVIDIA DLSS Frame Generation | RTX 40 or 50 Series for the option exposed by RenderLatch. Multi Frame Generation availability depends on GPU support and the in-game backend. |
 | AMD FSR and Intel XeSS | FSR 3.1, FSR 4, and XeSS options depend on the installed backend and driver. The FSR 4 profiles in this kit require a compatible Radeon RX 9000 GPU. |
@@ -32,8 +32,8 @@ Compatibility varies by game, rendering API, GPU, and other installed mods. Use 
 ## Quick start
 
 1. Download **RenderLatch-windows-x64.exe** from Releases and double-click it. The app runs without a separate install or source checkout.
-2. Open **Ferramentas** (**Tools**) and choose **Baixar kit** (**Download kit**). This downloads about 500 MB of pinned OptiScaler and NVIDIA Streamline packages. The application executable itself contains the RenderLatch interface and tools. Third-party binaries are fetched separately or imported locally.
-3. Choose **Importar modelo NVIDIA…** (**Import NVIDIA model**) and select **nvngx_dlssnr.dll** from a compatible installation you have access to. RenderLatch checks the NVIDIA signature and file size.
+2. Open **Ferramentas** (**Tools**) and choose **Baixar kit completo** (**Download complete kit**). A single operation prepares OptiScaler, NVIDIA Streamline, the NVIDIA-signed neural rendering model, and DLSS5oneclick. Allow roughly 700 MB for a first download. Activity shows each stage, and retries reuse verified downloads.
+3. Wait for **Kit completo pronto para usar**. RenderLatch uses the installed DLSS5oneclick automatically. The model archive comes from the [RankFTW release mirror](https://github.com/RankFTW/rhi-repo/releases/tag/dlssnr-310.9.16-nvidia). RenderLatch verifies its archive checksum and the NVIDIA signature on the DLL. **Importar modelo NVIDIA…** lets you supply your own signed copy.
 4. Open **Jogos** (**Games**) and choose **Detectar jogos** (**Find games**). If your game is missing, expand **Selecionar manualmente** (**Select manually**) and browse to the game's folder or actual executable.
 5. Review the route and choose the desired graphics settings. Select **Ver prévia** (**Preview**) and review the **Atividade** (**Activity**) panel. **Ampliar** expands the log.
 6. Close the game, choose **Aplicar instalação** (**Apply installation**), and reopen the game. When OptiScaler is installed, press **Insert** to open its in-game menu.
@@ -58,7 +58,7 @@ Select the game and use the automatically detected **OptiScaler** route. For Dir
 
 ### Games without native DLSS
 
-1. Download the external installer from [DLSS5oneclick Releases](https://github.com/faisalkindi/DLSS5oneclick/releases) and link it under **Ferramentas → DLSS5oneclick → Vincular executável**. RenderLatch remembers the location.
+1. Choose **Ferramentas → Baixar kit completo** to install DLSS5oneclick. To use a different copy, choose **Escolher outro executável…**. RenderLatch remembers your selection.
 2. Select the game, preview the **Feeder** installation, and apply. Start the game and reach its menu so the Feeder can record the renderer. Close the game again.
 3. For a supported 64-bit DirectX 12 game, enable **Adicionar menu OptiScaler ao Feeder (DX12)**. Select the graphics options, generate a fresh preview, and apply it. RenderLatch stores the original ReShade loader and RenoDX add-on so it can restore them later.
 4. In the OptiScaler menu, use **OptiFG (Upscaler)** as the Frame Generation input when the game has no native FG input. Choose a compatible **FG Output**. Use **Save INI** and restart the game when changing the output.
@@ -78,7 +78,7 @@ Use **Manutenção → Desfazer instalação** (**Maintenance → Undo installat
 | Symptom | What to check |
 | --- | --- |
 | No games are detected | Choose **Selecionar manualmente** and select the actual game executable. |
-| The kit is incomplete | Download the kit, then import a signed **nvngx_dlssnr.dll**. Do not substitute **nvngx_dlss.dll** or **nvngx_dlssd.dll** for the model. |
+| The kit is incomplete | Choose **Baixar kit completo** and check Activity for the failing stage. Retry to resume from verified files. Do not substitute **nvngx_dlss.dll** or **nvngx_dlssd.dll** for the model. |
 | Preview is ready, but Apply is disabled | Generate a fresh preview after changing the game or any installation option. |
 | The OptiScaler menu does not open | Confirm the selected route and renderer, restart the game, then press **Insert**. Feeder-only ReShade uses **Home**. |
 | OptiFG shows **OFF** | Check that the upscaler is active and review **OptiScaler.log** and **dlss5-feed.log** beside the game executable. Some builds show a native DLSSG detection counter even when OptiFG is supplying frames. Streamline interpolation messages give better evidence for the NVIDIA output. |
@@ -104,16 +104,16 @@ The release uses Windows PowerShell and WPF from Windows. It extracts its embedd
 Update the version in **Cargo.toml** and **Cargo.lock**, commit the change, then push the matching **vX.Y.Z** tag. The [Windows release workflow](.github/workflows/release.yml) runs tests, builds the standalone Windows executable, and publishes the executable and checksum. A manual workflow run builds downloadable artifacts without publishing a release.
 
 ~~~powershell
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.1.2
+git push origin v0.1.2
 ~~~
 
 If hosted Actions is unavailable, build on a Windows x64 machine from the tagged source and upload the two assets with the [GitHub CLI](https://cli.github.com/). Confirm that a release for the tag does not already exist before using this fallback.
 
 ~~~powershell
-git switch --detach v0.1.1
+git switch --detach v0.1.2
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build-release.ps1
-gh release create v0.1.1 dist/RenderLatch-windows-x64.exe dist/RenderLatch-windows-x64.exe.sha256 --verify-tag --generate-notes
+gh release create v0.1.2 dist/RenderLatch-windows-x64.exe dist/RenderLatch-windows-x64.exe.sha256 --verify-tag --generate-notes
 ~~~
 
 ## Acknowledgments

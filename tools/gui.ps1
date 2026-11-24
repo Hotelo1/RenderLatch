@@ -18,6 +18,8 @@ $gameScan = Join-Path $PSScriptRoot 'find-games.ps1'
 $libraryLayout = Join-Path $PSScriptRoot 'game-library.xaml'
 $runtimeFolder = if ($RuntimeRoot) { $RuntimeRoot } else { Join-Path $root 'runtime' }
 $kitFolder = Join-Path $runtimeFolder 'dlss5'
+$managedOneClick = Join-Path $runtimeFolder 'tools\dlss5oneclick.exe'
+$defaultOneClick = Join-Path $PSScriptRoot 'dlss5oneclick.exe'
 $oneClickPreference = Join-Path $env:LOCALAPPDATA 'RenderLatch\oneclick-path.txt'
 $psExe = Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe'
 $state = @{ Job = $null; PreviewedPath = $null; OneClick = $null; SelectedGame = $null; Route = '' }
@@ -49,13 +51,20 @@ if ([IO.File]::Exists($icon)) {
 }
 if ($Standalone) { $ui.DeveloperTools.Visibility = 'Collapsed' }
 
+function Get-OneClickPath {
+    foreach ($candidate in @($state.OneClick, $managedOneClick, $defaultOneClick)) {
+        if ($candidate -and [IO.File]::Exists($candidate)) { return $candidate }
+    }
+}
+
 function Update-Controls {
     $busy = $null -ne $state.Job
     $hasForge = [IO.File]::Exists($forge)
     $hasPath = -not [string]::IsNullOrWhiteSpace($ui.GamePath.Text)
-    $kitFiles = @('OptiScaler.dll', 'OptiScaler.ini', 'nvngx.dll_dlssnr.dll', 'nvngx_dlssnr.dll',
-        'feeder\OptiScaler.dll', 'feeder\OptiScaler.ini')
-    $missingFiles = @($kitFiles | Where-Object { -not [IO.File]::Exists((Join-Path $kitFolder $_)) })
+    $kitFiles = @('dlss5\OptiScaler.dll', 'dlss5\OptiScaler.ini', 'dlss5\nvngx.dll_dlssnr.dll', 'dlss5\nvngx_dlssnr.dll',
+        'dlss5\feeder\OptiScaler.dll', 'dlss5\feeder\OptiScaler.ini', 'nvngx_dlss.dll', 'sl.interposer.dll', 'nvngx_dlssg.dll',
+        'tools\dlss5oneclick.exe')
+    $missingFiles = @($kitFiles | Where-Object { -not [IO.File]::Exists((Join-Path $runtimeFolder $_)) })
     $kitPresent = $missingFiles.Count -eq 0
 
     $ui.KitStatus.Text = if ($kitPresent) { 'Kit disponível' } else { 'Kit incompleto' }
@@ -91,10 +100,11 @@ function Update-Controls {
     $ui.FrameGenSource.Visibility = if ($needsSource) { 'Visible' } else { 'Collapsed' }
     $ui.FrameGenInput.IsEnabled = $needsSource -and -not $busy
     $ui.ChooseOneClick.IsEnabled = $ui.UseFeeder.IsEnabled = -not $busy
-    $oneClickLinked = $state.OneClick -and [IO.File]::Exists($state.OneClick)
-    $ui.ChooseOneClick.Content = if ($oneClickLinked) { 'Trocar executável' } else { 'Vincular executável' }
-    $ui.OneClickStatus.Text = if ($oneClickLinked) { 'Executável vinculado para a rota Feeder.' } else { 'Vincule o executável para usar a rota Feeder.' }
-    $ui.OneClickStatus.ToolTip = $state.OneClick
+    $oneClick = Get-OneClickPath
+    $ui.OneClickStatus.Text = if ($oneClick -eq $managedOneClick) { 'Instalado pelo kit. Selecionado automaticamente para a rota Feeder.' }
+        elseif ($oneClick) { 'Executável local selecionado para a rota Feeder.' }
+        else { 'Disponível em Baixar kit completo.' }
+    $ui.OneClickStatus.ToolTip = $oneClick
     $ui.RouteSummary.Text = switch ($state.Route) {
         'feeder-overlay' { 'Feeder + OptiScaler · DirectX 12' }
         'feeder' { if ($ui.UseFeeder.IsChecked) { 'Feeder · seleção manual' } else { 'Feeder' } }
@@ -132,8 +142,8 @@ function Update-Controls {
         'Confira a atividade e feche o jogo antes de aplicar.'
     } elseif ($state.Route -eq 'pending') {
         'Verificando a rota de instalação…'
-    } elseif ($ui.UseFeeder.IsChecked -and -not $oneClickLinked) {
-        'Vincule o DLSS5oneclick na área Ferramentas.'
+    } elseif (($ui.UseFeeder.IsChecked -or $state.Route -eq 'feeder') -and -not $oneClick) {
+        'Em Ferramentas, baixe o kit completo para usar o Feeder.'
     } elseif ($state.Route -eq 'feeder') {
         'Rota Feeder. Confira os componentes em Ver prévia.'
     } else {
@@ -183,7 +193,7 @@ function Start-Operation([string]$Label, [string]$FileName, [string[]]$ArgumentL
     $info.CreateNoWindow = $true
     $info.RedirectStandardOutput = $true
     $info.RedirectStandardError = $true
-    if ($FileName -eq $forge -or $GameLibrary) {
+    if ($FileName -eq $forge -or $GameLibrary -or $ArgumentList -contains $kitScript) {
         $info.StandardOutputEncoding = [Text.Encoding]::UTF8
         $info.StandardErrorEncoding = [Text.Encoding]::UTF8
     }
@@ -204,6 +214,7 @@ function Start-Operation([string]$Label, [string]$FileName, [string[]]$ArgumentL
         Diagnostic = $Diagnostic.IsPresent
         Optimization = $ArgumentList -contains '--optimize'
         GameLibrary = $GameLibrary.IsPresent
+        KitDownload = $ArgumentList -contains '-Complete' -and $ArgumentList -contains $kitScript
         RoutePath = $RoutePath
         RefreshRoute = ($FileName -eq $forge -and ($ArgumentList -contains '--yes' -or $ArgumentList -contains '--undo')) -or
             $ArgumentList -contains $buildScript
@@ -242,6 +253,9 @@ $timer.Add_Tick({
                     [void]$job.Output.AppendLine($line)
                 } else {
                     [void]$batch.AppendLine($line)
+                    if ($job.KitDownload -and $line -match '\[([1-4])/4\] (.+)$') {
+                        Set-OperationCard $job.Label "$($Matches[1]) de 4 · $($Matches[2])"
+                    }
                 }
                 $stream.Pending = $stream.Reader.ReadLineAsync()
             }
@@ -272,7 +286,7 @@ $timer.Add_Tick({
 
     if ($code -eq 0) {
         if ($job.PreviewPath) { $state.PreviewedPath = $job.PreviewPath }
-        $result = 'Concluído'
+        $result = if ($job.KitDownload) { 'Kit completo pronto para usar' } else { 'Concluído' }
         $tone = 'Accent'
     } elseif ($job.Optimization -and $code -eq 3) {
         $result = 'Nenhum ajuste aplicável'
@@ -410,7 +424,8 @@ function Invoke-GameOperation([string]$Action) {
     if (-not $target) { return }
     $gameArgs = @('dlss5', '--game', $target)
     if ($ui.UseFeeder.IsChecked) { $gameArgs += '--feeder' }
-    if ($state.OneClick) { $gameArgs += @('--oneclick', $state.OneClick) }
+    $oneClick = Get-OneClickPath
+    if ($oneClick) { $gameArgs += @('--oneclick', $oneClick) }
     $useOverlay = $state.Route -in @('opti', 'feeder-overlay') -or ($state.Route -eq 'feeder' -and $ui.UseInGameMenu.IsChecked)
     if ($Action -in @('Preview', 'Apply') -and $useOverlay) {
         if ($state.Route -ne 'opti-dx11') { $gameArgs += '--in-game-menu' }
@@ -557,8 +572,8 @@ $ui.Plan.Add_Click({ Start-Operation 'Plano do PC' $forge @('plan') })
 $ui.Doctor.Add_Click({ Start-Operation 'Diagnóstico do PC' $forge @('doctor') -Diagnostic })
 $ui.Download.Add_Click({
     $state.PreviewedPath = $null
-    Start-Operation 'Download do kit' $psExe @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File',
-        $kitScript, '-Dir', $kitFolder, '-WithStreamline')
+    Start-Operation 'Preparação do kit completo' $psExe @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File',
+        $kitScript, '-Dir', $kitFolder, '-Complete')
 })
 $ui.ImportModel.Add_Click({
     $dialog = [Microsoft.Win32.OpenFileDialog]::new()
@@ -606,8 +621,6 @@ $window.Add_Closing({
 })
 
 if ($NoTitleBar) { $window.WindowStyle = 'None' }
-$defaultOneClick = Join-Path $PSScriptRoot 'dlss5oneclick.exe'
-if ([IO.File]::Exists($defaultOneClick)) { $state.OneClick = $defaultOneClick }
 if ([IO.File]::Exists($oneClickPreference)) {
     try {
         $savedOneClick = [IO.File]::ReadAllText($oneClickPreference).Trim()

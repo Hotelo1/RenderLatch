@@ -25,6 +25,7 @@ pub fn prepare_ui() -> io::Result<PathBuf> {
         ("find-games.ps1", include_bytes!("../tools/find-games.ps1")),
         ("fetch-dlss5.ps1", include_bytes!("../tools/fetch-dlss5.ps1")),
         ("fetch-runtime.ps1", include_bytes!("../tools/fetch-runtime.ps1")),
+        ("kit-download.ps1", include_bytes!("../tools/kit-download.ps1")),
         ("renderlatch.ico", include_bytes!("../assets/renderlatch.ico")),
     ];
     for (name, content) in files {

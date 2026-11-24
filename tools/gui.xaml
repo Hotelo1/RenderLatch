@@ -542,11 +542,11 @@
                             <TextBlock Text="Gerencie o kit e os utilitários usados pelo Forge." Style="{StaticResource Caption}" Margin="0,4,0,16"/>
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
-                                    <TextBlock Text="OptiScaler" Style="{StaticResource SectionTitle}"/>
-                                    <TextBlock Text="Baixe as dependências gráficas e importe o modelo NVIDIA de uma instalação compatível."
+                                    <TextBlock Text="Kit de gráficos" Style="{StaticResource SectionTitle}"/>
+                                    <TextBlock Text="Instala OptiScaler, Streamline, o modelo NVIDIA e o DLSS5oneclick em uma etapa. A primeira vez pode baixar cerca de 700 MB."
                                                Style="{StaticResource Caption}" Margin="0,4,0,12"/>
                                     <WrapPanel>
-                                        <Button x:Name="Download" Content="Baixar kit" Margin="0,0,8,4"/>
+                                        <Button x:Name="Download" Content="Baixar kit completo" Style="{StaticResource Primary}" Margin="0,0,8,4"/>
                                         <Button x:Name="ImportModel" Content="Importar modelo NVIDIA…" Margin="0,0,0,4"/>
                                     </WrapPanel>
                                 </StackPanel>
@@ -556,7 +556,7 @@
                                     <TextBlock Text="DLSS5oneclick" Style="{StaticResource SectionTitle}"/>
                                     <TextBlock x:Name="OneClickStatus" Style="{StaticResource Caption}" Margin="0,4,0,12"/>
                                     <WrapPanel>
-                                        <Button x:Name="ChooseOneClick" Content="Vincular executável" Margin="0,0,8,4"/>
+                                        <Button x:Name="ChooseOneClick" Content="Usar outro executável…" Margin="0,0,8,4"/>
                                         <Button x:Name="OneClickReleases" Content="Abrir releases" Style="{StaticResource Quiet}" Margin="0,0,0,4"/>
                                     </WrapPanel>
                                 </StackPanel>

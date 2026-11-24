@@ -349,12 +349,15 @@ fn feeder(args: &[String], game: &Path, exe: &Path) -> i32 {
     let installer = if has(args, "--oneclick") {
         val(args, "--oneclick").map(PathBuf::from)
     } else {
-        std::env::current_exe().ok().and_then(|forge| {
-            forge.parent().map(|dir| dir.join("tools").join("dlss5oneclick.exe"))
-        })
+        crate::distribution::runtime_dir()
+            .map(|dir| dir.join("tools").join("dlss5oneclick.exe"))
+            .filter(|path| path.is_file())
+            .or_else(|| std::env::current_exe().ok().and_then(|forge| {
+                forge.parent().map(|dir| dir.join("tools").join("dlss5oneclick.exe"))
+            }))
     };
     let Some(installer) = installer.filter(|p| p.is_file() && p.extension().is_some_and(|x| x.eq_ignore_ascii_case("exe"))) else {
-        eprintln!("A rota Feeder precisa do DLSS5oneclick. Selecione o executável na interface ou use --oneclick <caminho.exe>.");
+        eprintln!("A rota Feeder precisa do DLSS5oneclick. Baixe o kit completo em Ferramentas ou use --oneclick <caminho.exe>.");
         eprintln!("Releases: https://github.com/faisalkindi/DLSS5oneclick/releases");
         return 2;
     };
