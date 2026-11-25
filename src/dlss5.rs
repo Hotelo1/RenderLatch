@@ -788,9 +788,8 @@ fn opti_profile(args: &[String], gpu_name: &str, native_fg: bool) -> Result<Opti
                 _ => return Err("Use --fg-input auto, dlssg, fsrfg, fsrfg30 ou upscaler.".into()),
             }
         };
-        let enabled = if output == "nofg" { "false" } else { "true" };
         profile.settings.extend([
-            ("FrameGen", "Enabled", enabled), ("FrameGen", "FGInput", input),
+            ("FrameGen", "Enabled", "false"), ("FrameGen", "FGInput", input),
             ("FrameGen", "FGOutput", output), ("FrameGen", "FGNvngxReplacement", "None"),
         ]);
     } else if has(args, "--fg-input") {
@@ -922,10 +921,14 @@ fn build_items(kit: &Path, game: &Path, prev: &[String], scale: &str, profile: &
         &installed_ini
     } else { &ini };
     let ini_txt = fs::read_to_string(source_ini).map_err(|e| format!("nao consegui ler OptiScaler.ini: {e}"))?;
-    let ini_txt = ini_set(&ini_txt, "DlssNr", "Enabled", "true");
     let ini_txt = ini_set(&ini_txt, "DlssNr", "WorkingScale", scale);
     let mut ini_txt = ini_set(&ini_txt, "ProcessFilter", "TargetProcessName", "auto");
-    for (section, key, value) in &profile.settings {
+    let startup_defaults = [
+        ("DlssNr", "Enabled", "false"),
+        ("FrameGen", "Enabled", "false"),
+    ];
+    let defaults = if source_ini == &ini { &startup_defaults[..] } else { &[] };
+    for (section, key, value) in defaults.iter().chain(&profile.settings) {
         let header = format!("[{section}]");
         if !ini_txt.lines().any(|line| line.trim().trim_start_matches('\u{feff}').eq_ignore_ascii_case(&header)) {
             ini_txt.push_str(&format!("\r\n[{section}]\r\n"));
@@ -1253,10 +1256,9 @@ pub fn cmd(args: &[String]) -> i32 {
         for (section, key, value) in &profile.settings {
             println!("    [{section}] {key}={value}");
         }
-        if profile.settings.contains(&("FrameGen", "Enabled", "true")) {
-            println!("  Reinicie o jogo e confira Frame Generation no overlay do OptiScaler (Insert).");
-        }
     }
+    println!("  Novas instalações começam com DLSS 5 e Frame Generation desativados.");
+    println!("  Abra o OptiScaler com Insert dentro do jogo para ativar os recursos desejados.");
 
     // ------------------------------------------------------------- tabela
     let total: u64 = items
@@ -1482,7 +1484,7 @@ pub fn cmd(args: &[String]) -> i32 {
          Arquivos colocados: {}\r\n\r\n\
          NO JOGO:\r\n\
          1. Abra o jogo. Se o overlay do OptiScaler nao aparecer, aperte Insert.\r\n\
-         2. Confira em DLSS Neural Rendering que 'Enable Neural Rendering' esta ligado.\r\n\
+         2. Em DLSS Neural Rendering, ative 'Enable Neural Rendering' se quiser usar o DLSS 5.\r\n\
          3. F6 liga/desliga a DLSS 5 para comparar.\r\n\
          4. Em DLSS Super Resolution, deixe o jogo em Qualidade ou Equilibrado.\r\n\
          5. Desligue MSAA/SSAA do jogo (conflita com o upscaler).\r\n\r\n\
@@ -1617,6 +1619,7 @@ mod tests {
         assert!(profile.settings.contains(&("FSR", "UpscalerIndex", "0")));
         assert!(profile.settings.contains(&("FSR", "FGIndex", "1")));
         assert!(profile.settings.contains(&("FrameGen", "FGInput", "dlssg")));
+        assert!(profile.settings.contains(&("FrameGen", "Enabled", "false")));
         assert_eq!(profile.files.len(), 3);
     }
 }

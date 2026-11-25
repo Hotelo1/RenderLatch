@@ -462,7 +462,7 @@
                                             </StackPanel>
                                             <StackPanel Margin="6,0,0,0">
                                                 <Label Target="{Binding ElementName=FrameGen}" Content="_Frame Generation" Style="{StaticResource FieldLabel}"/>
-                                                <ComboBox x:Name="FrameGen" SelectedIndex="0" AutomationProperties.Name="Frame Generation">
+                                                <ComboBox x:Name="FrameGen" SelectedIndex="0" AutomationProperties.Name="Frame Generation" ToolTip="Escolhe o perfil. Ative o Frame Generation pelo menu do OptiScaler no jogo.">
                                                     <ComboBoxItem Content="Manter atual" Tag=""/>
                                                     <ComboBoxItem Content="Desativado" Tag="off"/>
                                                     <ComboBoxItem Content="NVIDIA DLSS FG" Tag="dlss"/>

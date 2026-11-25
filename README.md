@@ -36,7 +36,7 @@ Compatibility varies by game, rendering API, GPU, and other installed mods. Use 
 3. Wait for **Kit completo pronto para usar**. RenderLatch uses the installed DLSS5oneclick automatically. The model archive comes from the [RankFTW release mirror](https://github.com/RankFTW/rhi-repo/releases/tag/dlssnr-310.9.16-nvidia). RenderLatch verifies its archive checksum and the NVIDIA signature on the DLL. **Importar modelo NVIDIA…** lets you supply your own signed copy.
 4. Open **Jogos** (**Games**) and choose **Detectar jogos** (**Find games**). If your game is missing, expand **Selecionar manualmente** (**Select manually**) and browse to the game's folder or actual executable.
 5. Review the route and choose the desired graphics settings. Select **Ver prévia** (**Preview**) and review the **Atividade** (**Activity**) panel. **Ampliar** expands the log.
-6. Close the game, choose **Aplicar instalação** (**Apply installation**), and reopen the game. When OptiScaler is installed, press **Insert** to open its in-game menu.
+6. Close the game, choose **Aplicar instalação** (**Apply installation**), and reopen the game. New OptiScaler installations start with DLSS 5 Neural Rendering and Frame Generation disabled. Press **Insert** in the game to activate either feature. A Frame Generation backend selected in RenderLatch is prepared for manual activation.
 
 The desktop UI is currently in Brazilian Portuguese. The steps above give the corresponding English labels.
 
