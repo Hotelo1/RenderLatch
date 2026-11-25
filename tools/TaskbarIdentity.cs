@@ -5,6 +5,21 @@ namespace RenderLatch
 {
     public static class TaskbarIdentity
     {
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+        public static void ApplyDarkTitleBar(IntPtr hwnd)
+        {
+            const int immersiveDarkMode = 20, legacyDarkMode = 19, captionColor = 35;
+            int enabled = 1;
+            if (DwmSetWindowAttribute(hwnd, immersiveDarkMode, ref enabled, sizeof(int)) < 0)
+                DwmSetWindowAttribute(hwnd, legacyDarkMode, ref enabled, sizeof(int));
+
+            // Windows 11 caption color, in COLORREF byte order, matching #101319.
+            int color = 0x191310;
+            DwmSetWindowAttribute(hwnd, captionColor, ref color, sizeof(int));
+        }
+
         [StructLayout(LayoutKind.Sequential)]
         private struct PropertyKey
         {

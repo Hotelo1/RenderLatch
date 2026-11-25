@@ -38,8 +38,8 @@ try {
 
 $ui = @{}
 foreach ($name in @('NavGames', 'NavPc', 'NavTools', 'WorkScroll', 'GamePage', 'PcPage', 'ToolsPage',
-        'GameSelection', 'SelectionHint', 'RouteSummary', 'OptiOptions', 'OptiOptionsHint', 'OneClickStatus', 'KitStatus',
-        'LibraryView', 'LibrarySearch', 'LibraryStatus', 'LibraryTiles', 'ManualGame', 'GameDetails', 'BackToLibrary', 'SelectedGameCover',
+        'GameSelection', 'SelectionHint', 'RouteSummary', 'OptiOptions', 'OptiOptionsHint', 'OneClickStatus', 'KitStatus', 'GameKitHint', 'GameKitDownload',
+        'LibraryView', 'LibraryBackdrop', 'LibrarySearch', 'LibraryStatus', 'LibraryTiles', 'ManualGame', 'GameDetails', 'BackToLibrary', 'SelectedGameCover',
         'AppLogo', 'ManualTarget', 'GamePath', 'Browse', 'BrowseExe', 'FindGames', 'ChooseOneClick', 'OneClickReleases', 'UseFeeder',
         'InstallBar', 'InstallTitle', 'GameHint', 'Preview', 'Apply', 'Inventory', 'Undo', 'Optimize', 'RestoreResolution',
         'OpticalF5', 'OpticalOptions', 'OpticalGenerator', 'Upscaler', 'FrameGen', 'FrameGenSource', 'FrameGenInput', 'UseInGameMenu', 'Detect', 'Plan', 'Doctor',
@@ -55,13 +55,16 @@ if ([IO.File]::Exists($icon)) {
     $ui.AppLogo.Source = $window.Icon
 }
 if ($Standalone) { $ui.DeveloperTools.Visibility = 'Collapsed' }
-if ([IO.File]::Exists($forge)) {
-    Add-Type -Path (Join-Path $PSScriptRoot 'TaskbarIdentity.cs')
-    $window.Add_SourceInitialized({
-        $handle = [Windows.Interop.WindowInteropHelper]::new($window).Handle
+Add-Type -Path (Join-Path $PSScriptRoot 'TaskbarIdentity.cs')
+$window.Add_SourceInitialized({
+    $handle = [Windows.Interop.WindowInteropHelper]::new($window).Handle
+    if (!$NoTitleBar -and ![Windows.SystemParameters]::HighContrast) {
+        [RenderLatch.TaskbarIdentity]::ApplyDarkTitleBar($handle)
+    }
+    if ([IO.File]::Exists($forge)) {
         [RenderLatch.TaskbarIdentity]::Apply($handle, $forge)
-    })
-}
+    }
+})
 
 function Get-OneClickPath {
     foreach ($candidate in @($state.OneClick, $managedOneClick, $defaultOneClick)) {
@@ -87,6 +90,16 @@ function Update-Controls {
         'tools\dlss5oneclick.exe')
     $missingFiles = @($kitFiles | Where-Object { -not [IO.File]::Exists((Join-Path $runtimeFolder $_)) })
     $kitPresent = $missingFiles.Count -eq 0
+    $preparingKit = $busy -and $state.Job.KitDownload
+    $ui.GameKitDownload.Content = if ($preparingKit) { 'Preparando kit…' } elseif ($kitPresent) { 'Preparar novamente' } else { 'Baixar kit completo' }
+    $ui.GameKitDownload.Style = $window.FindResource($(if ($kitPresent) { [Windows.Controls.Button] } else { 'Primary' }))
+    $ui.GameKitHint.Text = if ($preparingKit) {
+        'Preparando os arquivos. Acompanhe as etapas em Atividade.'
+    } elseif ($kitPresent) {
+        'Kit pronto neste PC. Escolha as opções gráficas abaixo.'
+    } else {
+        'Baixe os componentes compartilhados pelos jogos. O primeiro download pode chegar a 700 MB.'
+    }
 
     $ui.KitStatus.Text = if ($kitPresent) { 'Disponível' } else { 'Incompleto' }
     $ui.KitStatus.Foreground = $window.FindResource($(if ($kitPresent) { 'Accent' } else { 'Warning' }))
@@ -178,6 +191,7 @@ function Update-Controls {
     $ui.SelectedGameCover.Source = if ($state.SelectedGame.Artwork) { $state.SelectedGame.Artwork } else { $state.SelectedGame.Icon }
     $ui.Build.IsEnabled = -not $busy -and [IO.File]::Exists($buildScript)
     $ui.Download.IsEnabled = -not $busy -and [IO.File]::Exists($kitScript)
+    $ui.GameKitDownload.IsEnabled = $ui.Download.IsEnabled
     $ui.ImportModel.IsEnabled = $ui.Download.IsEnabled
     $ui.Menu.IsEnabled = -not $busy -and [IO.File]::Exists($menuScript)
     $ui.ClearLog.IsEnabled = -not $busy -and $ui.Activity.Text.Length -gt 0
@@ -185,7 +199,7 @@ function Update-Controls {
     $ui.Progress.IsIndeterminate = $busy
     $ui.Progress.Visibility = if ($busy) { 'Visible' } else { 'Hidden' }
     $hasPreview = $null -ne $state.PreviewedPath
-    $ui.InstallTitle.Text = if ($hasPreview) { 'Prévia pronta' } else { 'Instalação' }
+    $ui.InstallTitle.Text = if ($hasPreview) { 'Prévia pronta para aplicar' } else { 'Instalação no jogo' }
     $ui.InstallTitle.Foreground = $window.FindResource($(if ($hasPreview) { 'Accent' } else { 'WindowText' }))
     $ui.GameHint.Text = if (-not $hasForge) {
         'Use Recompilar para gerar o forge.exe.'
@@ -198,7 +212,7 @@ function Update-Controls {
     } elseif ($optical) {
         'Confira a prévia do Optical F5Low para o executável selecionado.'
     } elseif (($ui.UseFeeder.IsChecked -or $state.Route -like 'feeder*') -and -not $oneClick) {
-        'Em Ferramentas, baixe o kit completo para usar o Feeder.'
+        'Use Baixar kit completo acima para preparar o Feeder.'
     } elseif ($state.Route -like 'feeder*') {
         'Rota Feeder. Confira os componentes em Ver prévia.'
     } else {
@@ -418,6 +432,7 @@ $timer.Add_Tick({
             [object[]]$games = ConvertFrom-Json -InputObject $job.Output.ToString()
             foreach ($game in $games) { Set-GameArtwork $game }
             $state.Games = $games
+            Update-LibraryBackdrop
             $state.LibraryError = $false
         } catch {
             $state.LibraryError = $true
@@ -515,6 +530,28 @@ function Set-GameArtwork($Game) {
     }
     Add-Member -InputObject $Game -NotePropertyName Artwork -NotePropertyValue $artwork
     Add-Member -InputObject $Game -NotePropertyName Icon -NotePropertyValue $icon
+}
+
+function Update-LibraryBackdrop {
+    $ui.LibraryBackdrop.ImageSource = $null
+    foreach ($game in $state.Games) {
+        if (!$game.Cover -or ![IO.File]::Exists($game.Cover)) { continue }
+        $hero = $game.Cover -replace 'library_600x900\.jpg$', 'library_hero.jpg'
+        if ($hero -eq $game.Cover -or ![IO.File]::Exists($hero)) { continue }
+        try {
+            $image = [Windows.Media.Imaging.BitmapImage]::new()
+            $image.BeginInit()
+            $image.DecodePixelWidth = 1280
+            $image.CacheOption = 'OnLoad'
+            $image.UriSource = [uri]::new($hero)
+            $image.EndInit()
+            $image.Freeze()
+            $ui.LibraryBackdrop.ImageSource = $image
+            break
+        } catch {
+            # Try the next local panorama if this cache entry is unreadable.
+        }
+    }
 }
 
 function Update-Library {
@@ -734,11 +771,13 @@ $ui.RestoreResolution.Add_Click({ Invoke-GameOperation 'RestoreResolution' })
 $ui.Detect.Add_Click({ Start-Operation 'Detecção de hardware' $forge @('detect') })
 $ui.Plan.Add_Click({ Start-Operation 'Plano do PC' $forge @('plan') })
 $ui.Doctor.Add_Click({ Start-Operation 'Diagnóstico do PC' $forge @('doctor') -Diagnostic })
-$ui.Download.Add_Click({
+$prepareKit = {
     $state.PreviewedPath = $null
     Start-Operation 'Preparação do kit completo' $psExe @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File',
         $kitScript, '-Dir', $kitFolder, '-Complete')
-})
+}
+$ui.Download.Add_Click($prepareKit)
+$ui.GameKitDownload.Add_Click($prepareKit)
 $ui.ImportModel.Add_Click({
     $dialog = [Microsoft.Win32.OpenFileDialog]::new()
     $dialog.Title = 'Selecione o modelo NVIDIA DLSS Neural Rendering'
