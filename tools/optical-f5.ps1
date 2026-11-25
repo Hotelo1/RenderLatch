@@ -90,6 +90,10 @@ try {
         }
         default { 'f5low' }
     }
+    # ETS2 rejects the private Streamline context. The standard OptiScaler DLSS-G output initializes on DX11.
+    if ([IO.Path]::GetFileName($GameExe) -eq 'eurotrucks2.exe' -and $output -eq 'f5low' -and $Generator -ne 'tensor') {
+        $output = 'dlssg'
+    }
     $engine = if ($Generator -eq 'tensor') { 'xefg_tensor' } else { 'dlssg' }
     Write-Output "Optical F5Low 0.1.39 | $GameExe | $proxy | FGOutput=$output"
     if ($output -eq 'f5low') { Write-Output "Gerador F5Low: $engine" }
