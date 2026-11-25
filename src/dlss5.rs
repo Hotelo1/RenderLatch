@@ -818,6 +818,11 @@ fn overlay_dependencies(profile: &mut OptiProfile, gpu_name: &str) {
     profile.settings.push(("Menu", "ShortcutKey", "0x2D"));
 }
 
+fn feeder_graphics_api(exe: &Path, game: &Path) -> &'static str {
+    let log = read_head(&game.join("dlss5-feed.log"), 2 * 1024 * 1024);
+    feeder_api_from_log(&String::from_utf8_lossy(&log)).unwrap_or_else(|| guess_api(exe, game))
+}
+
 fn feeder_overlay_proxy(exe: &Path, game: &Path, prev: &[String]) -> Result<&'static str, String> {
     let reshade = game.join(MARK).join(FEEDER_RESHADE_BACKUP);
     if !game.join("dlss5-feed.addon64").is_file()
@@ -831,9 +836,7 @@ fn feeder_overlay_proxy(exe: &Path, game: &Path, prev: &[String]) -> Result<&'st
     if reshade.is_file() && game.join("dxgi.dll").exists() {
         return Err("Outro dxgi.dll foi instalado após a migração do ReShade. Resolva o conflito antes de aplicar.".into());
     }
-    let log = read_head(&game.join("dlss5-feed.log"), 2 * 1024 * 1024);
-    let api = feeder_api_from_log(&String::from_utf8_lossy(&log)).unwrap_or_else(|| guess_api(exe, game));
-    if api != "DX12" {
+    if feeder_graphics_api(exe, game) != "DX12" {
         return Err("Abra e feche o jogo em DirectX 12 antes de preparar o menu do OptiScaler.".into());
     }
     if !game.join(MARK).join(FEEDER_CONSUMER_BACKUP).is_file()
@@ -1069,6 +1072,16 @@ pub fn cmd(args: &[String]) -> i32 {
     if has(args, "--route") {
         let route = if hybrid_installed {
             "feeder-overlay"
+        } else if use_feeder && has(args, "--route-details") {
+            if !oneclick_installed {
+                "feeder-new"
+            } else {
+                match feeder_graphics_api(&exe, dest) {
+                    "DX12" => "feeder",
+                    "DX11" | "DX11 (Unity)" => "feeder-dx11",
+                    _ => "feeder-unknown-api",
+                }
+            }
         } else if use_feeder {
             "feeder"
         } else if guess_api(&exe, dest) == "DX11" {

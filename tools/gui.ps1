@@ -92,6 +92,9 @@ function Update-Controls {
     $showOpti = $state.Route -in @('opti', 'feeder-overlay') -or ($state.Route -eq 'feeder' -and $ui.UseInGameMenu.IsChecked)
     $ui.OptiOptions.Visibility = if ($showOpti) { 'Visible' } else { 'Collapsed' }
     $ui.OptiOptionsHint.Text = switch ($state.Route) {
+        'feeder-new' { 'Primeiro, confira a prévia e aplique o Feeder. O menu do OptiScaler fica disponível em jogos compatíveis com DirectX 12.' }
+        'feeder-dx11' { 'Feeder instalado. DirectX 11 detectado. O menu do OptiScaler desta rota requer DirectX 12.' }
+        'feeder-unknown-api' { 'Feeder instalado. Se o jogo oferecer DirectX 12, abra e feche nesse modo e selecione o jogo novamente.' }
         'feeder' {
             if ($showOpti) { 'O Forge prepara o overlay no Feeder. Abra com Insert dentro do jogo.' }
             else { 'Marque a opção abaixo para adicionar o menu do OptiScaler ao Feeder em DX12.' }
@@ -113,6 +116,9 @@ function Update-Controls {
         else { 'Disponível em Baixar kit completo.' }
     $ui.OneClickStatus.ToolTip = $oneClick
     $ui.RouteSummary.Text = switch ($state.Route) {
+        'feeder-new' { 'Feeder · primeira instalação' }
+        'feeder-dx11' { 'Feeder · DirectX 11' }
+        'feeder-unknown-api' { 'Feeder · API a confirmar' }
         'feeder-overlay' { 'Feeder + OptiScaler · DirectX 12' }
         'feeder' { if ($ui.UseFeeder.IsChecked) { 'Feeder · seleção manual' } else { 'Feeder' } }
         'opti' { 'OptiScaler' }
@@ -149,9 +155,9 @@ function Update-Controls {
         'Confira a atividade e feche o jogo antes de aplicar.'
     } elseif ($state.Route -eq 'pending') {
         'Verificando a rota de instalação…'
-    } elseif (($ui.UseFeeder.IsChecked -or $state.Route -eq 'feeder') -and -not $oneClick) {
+    } elseif (($ui.UseFeeder.IsChecked -or $state.Route -like 'feeder*') -and -not $oneClick) {
         'Em Ferramentas, baixe o kit completo para usar o Feeder.'
-    } elseif ($state.Route -eq 'feeder') {
+    } elseif ($state.Route -like 'feeder*') {
         'Rota Feeder. Confira os componentes em Ver prévia.'
     } else {
         'Revise o destino e os arquivos antes de aplicar.'
@@ -285,7 +291,7 @@ $timer.Add_Tick({
     if ($job.RoutePath) {
         if ($job.RoutePath -eq $ui.GamePath.Text.Trim()) {
             $route = $job.Output.ToString().Trim()
-            $state.Route = if ($code -eq 0 -and $route -in @('feeder', 'feeder-overlay', 'opti', 'opti-dx11')) { $route } else { '' }
+            $state.Route = if ($code -eq 0 -and $route -in @('feeder', 'feeder-new', 'feeder-dx11', 'feeder-unknown-api', 'feeder-overlay', 'opti', 'opti-dx11')) { $route } else { '' }
         }
         Update-Controls
         return
@@ -342,7 +348,9 @@ $routeTimer.Add_Tick({
     $routeTimer.Stop()
     $target = $ui.GamePath.Text.Trim()
     if ($target) {
-        Start-Operation 'Identificação da rota' $forge @('dlss5', '--game', $target, '--route') -RoutePath $target
+        $routeArgs = @('dlss5', '--game', $target, '--route', '--route-details')
+        if ($ui.UseFeeder.IsChecked) { $routeArgs += '--feeder' }
+        Start-Operation 'Identificação da rota' $forge $routeArgs -RoutePath $target
     }
 })
 
@@ -350,12 +358,8 @@ function Schedule-RouteCheck {
     $routeTimer.Stop()
     $state.Route = ''
     if (-not [string]::IsNullOrWhiteSpace($ui.GamePath.Text) -and [IO.File]::Exists($forge)) {
-        if ($ui.UseFeeder.IsChecked) {
-            $state.Route = 'feeder'
-        } else {
-            $state.Route = 'pending'
-            $routeTimer.Start()
-        }
+        $state.Route = 'pending'
+        $routeTimer.Start()
     }
     Update-Controls
 }
