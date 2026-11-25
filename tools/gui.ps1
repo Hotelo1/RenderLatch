@@ -319,7 +319,9 @@ $timer.Add_Tick({
 
     if ($job.GameLibrary -and $code -eq 0) {
         try {
-            $games = @($job.Output.ToString() | ConvertFrom-Json)
+            # Windows PowerShell 5.1 returns a JSON array as one pipeline item.
+            # Bind its elements directly so each game gets its own library row.
+            [object[]]$games = ConvertFrom-Json -InputObject $job.Output.ToString()
             if (-not $games.Count) {
                 Add-Activity 'Nenhum jogo detectado. Use Pasta… ou .exe… para selecionar manualmente.'
                 $ui.Status.Text = 'Nenhum jogo detectado.'
