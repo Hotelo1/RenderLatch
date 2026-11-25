@@ -12,7 +12,7 @@ RenderLatch is a Windows desktop tool for configuring NVIDIA DLSS Neural Renderi
 
 - Find games installed through Steam, Epic Games, and GOG, or select an executable manually.
 - Set up OptiScaler for games with native DLSS. For eligible games without native DLSS, use the Feeder route through DLSS5oneclick.
-- Configure upscaling and frame generation independently in DirectX 12. Supported options depend on the route, GPU, and game.
+- Configure upscaling and frame generation independently in DirectX 12 and on compatible DirectX 11 Feeder installations. Supported options depend on the route, GPU, and game.
 - Preview the target folder, selected options, DLLs, and expected changes before applying them.
 - Inspect your GPU, VRAM, driver, CPU, memory, and PCIe connection. Apply a per-PC profile where the selected route supports one.
 - Restore files managed by RenderLatch and undo supported resolution changes.
@@ -23,7 +23,7 @@ RenderLatch is a Windows desktop tool for configuring NVIDIA DLSS Neural Renderi
 | --- | --- |
 | Desktop app | Windows 10 or 11 on x64 with the system Windows PowerShell 5.1 and WPF. Internet access is needed to download the optional graphics kit. |
 | DLSS Neural Rendering | The supported configuration is an NVIDIA GeForce RTX 50 Series GPU, a compatible NVIDIA driver, and an authentic NVIDIA-signed **nvngx_dlssnr.dll** installed by the kit or imported from a compatible installation. |
-| OptiScaler graphics controls | A compatible DirectX 12 game or a supported 64-bit DirectX 12 Feeder installation. The game or Feeder must supply the inputs required by the selected mode. |
+| OptiScaler graphics controls | A compatible DirectX 12 game or a supported 64-bit DirectX 11 or 12 Feeder installation. The game or Feeder must supply the inputs required by the selected mode. |
 | NVIDIA DLSS Frame Generation | RTX 40 or 50 Series for the option exposed by RenderLatch. Multi Frame Generation availability depends on GPU support and the in-game backend. |
 | AMD FSR and Intel XeSS | FSR 3.1, FSR 4, and XeSS options depend on the installed backend and driver. The FSR 4 profiles in this kit require a compatible Radeon RX 9000 GPU. |
 
@@ -60,7 +60,7 @@ Select the game and use the automatically detected **OptiScaler** route. For Dir
 
 1. Choose **Ferramentas → Baixar kit completo** to install DLSS5oneclick. To use a different copy, choose **Escolher outro executável…**. RenderLatch remembers your selection.
 2. Select the game, preview the **Feeder** installation, and apply. Start the game and reach its menu so the Feeder can record the renderer. Close the game again.
-3. For a supported 64-bit DirectX 12 game, enable **Adicionar menu OptiScaler ao Feeder (DX12)**. Select the graphics options, generate a fresh preview, and apply it. RenderLatch stores the original ReShade loader and RenoDX add-on so it can restore them later.
+3. For a supported 64-bit DirectX 11 or 12 game, enable **Adicionar menu OptiScaler ao Feeder**. In DirectX 11, select **Detectar automaticamente** or **Upscaler (OptiFG)** as the Frame Generation input. The DirectX 11 bridge requires a compatible swap chain and an active upscaler input. Select the graphics options, generate a fresh preview, and apply it. RenderLatch stores the original ReShade loader and RenoDX add-on so it can restore them later.
 4. In the OptiScaler menu, use **OptiFG (Upscaler)** as the Frame Generation input when the game has no native FG input. Choose a compatible **FG Output**. Use **Save INI** and restart the game when changing the output.
 
 The Feeder supplies a synthetic DLSS input using frame data from the game. OptiFG is experimental. HUD artifacts, intermittent interpolation, or an unavailable option are possible. The PEAK DirectX 12 setup has been tested with DLSS FG on an RTX 5060. That result does not establish compatibility with other games or GPUs.

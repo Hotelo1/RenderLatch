@@ -836,9 +836,6 @@ fn feeder_overlay_proxy(exe: &Path, game: &Path, prev: &[String]) -> Result<&'st
     if reshade.is_file() && game.join("dxgi.dll").exists() {
         return Err("Outro dxgi.dll foi instalado após a migração do ReShade. Resolva o conflito antes de aplicar.".into());
     }
-    if feeder_graphics_api(exe, game) != "DX12" {
-        return Err("Abra e feche o jogo em DirectX 12 antes de preparar o menu do OptiScaler.".into());
-    }
     if !game.join(MARK).join(FEEDER_CONSUMER_BACKUP).is_file()
         && !(game.join(FEEDER_CONSUMER).is_file() && game.join("renodx-dlss5.addon64.dlss5oneclick").is_file())
     {
@@ -1070,7 +1067,9 @@ pub fn cmd(args: &[String]) -> i32 {
     let installed_opti = dest.join(MARK).join("install.txt").is_file();
     let use_feeder = feeder_selected || (!has_native && !force && !installed_opti);
     if has(args, "--route") {
-        let route = if hybrid_installed {
+        let route = if hybrid_installed && has(args, "--route-details") && matches!(feeder_graphics_api(&exe, dest), "DX11" | "DX11 (Unity)") {
+            "feeder-overlay-dx11"
+        } else if hybrid_installed {
             "feeder-overlay"
         } else if use_feeder && has(args, "--route-details") {
             if !oneclick_installed {
@@ -1149,7 +1148,16 @@ pub fn cmd(args: &[String]) -> i32 {
         None => working_scale(vram).to_string(),
     };
 
-    let api = guess_api(&exe, dest);
+    let api = if feeder_overlay { feeder_graphics_api(&exe, dest) } else { guess_api(&exe, dest) };
+    let dx11_overlay = feeder_overlay && matches!(api, "DX11" | "DX11 (Unity)");
+    if feeder_overlay && !dx11_overlay && api != "DX12" {
+        eprintln!("Abra e feche o jogo em DirectX 11 ou 12 antes de preparar o menu do OptiScaler.");
+        return 2;
+    }
+    if dx11_overlay && !matches!(val(args, "--fg-input"), None | Some("auto" | "upscaler")) {
+        eprintln!("No Feeder DirectX 11, selecione Automático ou Upscaler (OptiFG) como origem de Frame Generation.");
+        return 2;
+    }
     if (opti_options || menu_requested) && api == "DX11" && !feeder_overlay {
         eprintln!("Os perfis de upscaling e Frame Generation do Forge são para o OptiScaler em DirectX 12.");
         return 2;
@@ -1171,6 +1179,19 @@ pub fn cmd(args: &[String]) -> i32 {
         };
         if !has(args, "--upscaler") && !hybrid_installed {
             profile.settings.push(("Upscalers", "Dx12Upscaler", "dlss"));
+        }
+        if dx11_overlay {
+            // The Feeder submits NGX work on D3D12 while the game presents on D3D11.
+            if let Some(value) = profile.settings.iter().find_map(|&(section, key, value)|
+                (section == "Upscalers" && key == "Dx12Upscaler").then_some(value)) {
+                let backend = match value { "dlss" => "dlss_12", "ffx" => "ffx_12", "xess" => "xess_12", other => other };
+                profile.settings.push(("Upscalers", "Dx11Upscaler", backend));
+            }
+            if has(args, "--framegen") && val(args, "--framegen") != Some("off") {
+                for (section, key, value) in &mut profile.settings {
+                    if *section == "FrameGen" && *key == "FGInput" { *value = "upscaler"; }
+                }
+            }
         }
         if !dest.join(MARK).join(FEEDER_RESHADE_BACKUP).is_file() || val(args, "--framegen") == Some("dlss") {
             profile.settings.push(("DLSSG", "UseGamesReflexMarkers", "false"));
@@ -1228,7 +1249,7 @@ pub fn cmd(args: &[String]) -> i32 {
         }
     };
     if !profile.settings.is_empty() {
-        println!("  Perfil OptiScaler em DX12");
+        println!("  Perfil OptiScaler · {api}");
         for (section, key, value) in &profile.settings {
             println!("    [{section}] {key}={value}");
         }
