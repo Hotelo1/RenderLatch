@@ -85,17 +85,17 @@ function Update-Controls {
     foreach ($name in @('Inventory', 'Undo', 'Optimize', 'RestoreResolution')) {
         $ui[$name].IsEnabled = $hasForge -and $hasPath -and -not $busy
     }
-    $ui.Preview.IsEnabled = $hasForge -and $hasPath -and -not $busy -and $state.Route -notin @('pending', 'feeder-ats-recovery')
+    $ui.Preview.IsEnabled = $hasForge -and $hasPath -and -not $busy -and $state.Route -ne 'pending'
     $ui.Apply.IsEnabled = $ui.Preview.IsEnabled -and $null -ne $state.PreviewedPath
-    $ui.UseInGameMenu.Visibility = if ($state.Route -in @('feeder', 'feeder-dx11')) { 'Visible' } else { 'Collapsed' }
-    $ui.UseInGameMenu.IsEnabled = -not $busy -and $state.Route -in @('feeder', 'feeder-dx11')
-    $showOpti = $state.Route -in @('opti', 'feeder-overlay', 'feeder-overlay-dx11') -or ($state.Route -in @('feeder', 'feeder-dx11') -and $ui.UseInGameMenu.IsChecked)
+    $ui.UseInGameMenu.Visibility = if ($state.Route -in @('feeder', 'feeder-dx11', 'feeder-ats-dx11')) { 'Visible' } else { 'Collapsed' }
+    $ui.UseInGameMenu.IsEnabled = -not $busy -and $state.Route -in @('feeder', 'feeder-dx11', 'feeder-ats-dx11')
+    $showOpti = $state.Route -in @('opti', 'feeder-overlay', 'feeder-overlay-dx11', 'feeder-ats-overlay') -or ($state.Route -in @('feeder', 'feeder-dx11', 'feeder-ats-dx11') -and $ui.UseInGameMenu.IsChecked)
     $ui.OptiOptions.Visibility = if ($showOpti) { 'Visible' } else { 'Collapsed' }
     $ui.OptiOptionsHint.Text = switch ($state.Route) {
         'feeder-new' { 'Primeiro, confira a prévia e aplique o Feeder. O menu do OptiScaler fica disponível em jogos compatíveis com DirectX 11 ou 12.' }
         'feeder-dx11' { 'DirectX 11 detectado. Marque o menu para configurar upscaling e Frame Generation via OptiFG.' }
-        'feeder-ats-dx11' { 'Para evitar travamentos no American Truck Simulator em DX11, use o Feeder e abra o ReShade com Home.' }
-        'feeder-ats-recovery' { 'Feche o jogo e use Desfazer instalação para restaurar o Feeder com ReShade.' }
+        'feeder-ats-dx11' { 'Marque a opção para adicionar o OptiScaler. O perfil do ATS em DX11 inicia sem a ponte de Frame Generation.' }
+        'feeder-ats-overlay' { 'Abra o OptiScaler com Insert. O perfil do ATS em DX11 inicia sem a ponte de Frame Generation.' }
         'feeder-unknown-api' { 'Feeder instalado. Abra e feche o jogo em DirectX 11 ou 12 e selecione o jogo novamente.' }
         'feeder' {
             if ($showOpti) { 'O Forge prepara o overlay no Feeder. Abra com Insert dentro do jogo.' }
@@ -108,13 +108,15 @@ function Update-Controls {
         'pending' { 'Aguarde a verificação de compatibilidade.' }
         default { if (-not $hasPath) { 'Escolha um jogo para ver as configurações disponíveis.' } }
     }
-    $ui.Upscaler.IsEnabled = $ui.FrameGen.IsEnabled = -not $busy -and $showOpti
+    $ui.Upscaler.IsEnabled = -not $busy -and $showOpti
+    $atsDx11 = $state.Route -in @('feeder-ats-dx11', 'feeder-ats-overlay')
+    $ui.FrameGen.IsEnabled = -not $busy -and $showOpti -and -not $atsDx11
     $dx11Overlay = $state.Route -in @('feeder-dx11', 'feeder-overlay-dx11')
     foreach ($item in $ui.FrameGenInput.Items) {
         $item.IsEnabled = -not $dx11Overlay -or $item.Tag -in @('auto', 'upscaler')
     }
     if ($dx11Overlay -and -not $ui.FrameGenInput.SelectedItem.IsEnabled) { $ui.FrameGenInput.SelectedIndex = 0 }
-    $needsSource = $showOpti -and $ui.FrameGen.SelectedItem.Tag -notin @($null, '', 'off')
+    $needsSource = $showOpti -and -not $atsDx11 -and $ui.FrameGen.SelectedItem.Tag -notin @($null, '', 'off')
     $ui.FrameGenSource.Visibility = if ($needsSource) { 'Visible' } else { 'Collapsed' }
     $ui.FrameGenInput.IsEnabled = $needsSource -and -not $busy
     $ui.ChooseOneClick.IsEnabled = $ui.UseFeeder.IsEnabled = -not $busy
@@ -126,7 +128,7 @@ function Update-Controls {
     $ui.RouteSummary.Text = switch ($state.Route) {
         'feeder-new' { 'Feeder · primeira instalação' }
         'feeder-ats-dx11' { 'Feeder · DirectX 11' }
-        'feeder-ats-recovery' { 'Feeder · restauração necessária' }
+        'feeder-ats-overlay' { 'Feeder + OptiScaler · DirectX 11' }
         'feeder-dx11' { 'Feeder · DirectX 11' }
         'feeder-unknown-api' { 'Feeder · API a confirmar' }
         'feeder-overlay-dx11' { 'Feeder + OptiScaler · DirectX 11' }
@@ -302,7 +304,7 @@ $timer.Add_Tick({
     if ($job.RoutePath) {
         if ($job.RoutePath -eq $ui.GamePath.Text.Trim()) {
             $route = $job.Output.ToString().Trim()
-            $state.Route = if ($code -eq 0 -and $route -in @('feeder', 'feeder-new', 'feeder-dx11', 'feeder-ats-dx11', 'feeder-ats-recovery', 'feeder-unknown-api', 'feeder-overlay', 'feeder-overlay-dx11', 'opti', 'opti-dx11')) { $route } else { '' }
+            $state.Route = if ($code -eq 0 -and $route -in @('feeder', 'feeder-new', 'feeder-dx11', 'feeder-ats-dx11', 'feeder-ats-overlay', 'feeder-unknown-api', 'feeder-overlay', 'feeder-overlay-dx11', 'opti', 'opti-dx11')) { $route } else { '' }
         }
         Update-Controls
         return
@@ -450,13 +452,13 @@ function Invoke-GameOperation([string]$Action) {
     if ($ui.UseFeeder.IsChecked) { $gameArgs += '--feeder' }
     $oneClick = Get-OneClickPath
     if ($oneClick) { $gameArgs += @('--oneclick', $oneClick) }
-    $useOverlay = $state.Route -in @('opti', 'feeder-overlay', 'feeder-overlay-dx11') -or ($state.Route -in @('feeder', 'feeder-dx11') -and $ui.UseInGameMenu.IsChecked)
+    $useOverlay = $state.Route -in @('opti', 'feeder-overlay', 'feeder-overlay-dx11', 'feeder-ats-overlay') -or ($state.Route -in @('feeder', 'feeder-dx11', 'feeder-ats-dx11') -and $ui.UseInGameMenu.IsChecked)
     if ($Action -in @('Preview', 'Apply') -and $useOverlay) {
         if ($state.Route -ne 'opti-dx11') { $gameArgs += '--in-game-menu' }
         $upscaler = $ui.Upscaler.SelectedItem.Tag
         $frameGen = $ui.FrameGen.SelectedItem.Tag
         if ($upscaler) { $gameArgs += @('--upscaler', $upscaler) }
-        if ($frameGen) {
+        if ($frameGen -and $state.Route -notin @('feeder-ats-dx11', 'feeder-ats-overlay')) {
             $gameArgs += @('--framegen', $frameGen)
             if ($frameGen -ne 'off') { $gameArgs += @('--fg-input', $ui.FrameGenInput.SelectedItem.Tag) }
         }
@@ -473,7 +475,7 @@ function Invoke-GameOperation([string]$Action) {
                 Show-Error 'Gere uma nova prévia para esta pasta antes de aplicar.'
                 return
             }
-            $message = if ($useOverlay -and $state.Route -in @('feeder', 'feeder-dx11', 'feeder-overlay', 'feeder-overlay-dx11')) {
+            $message = if ($useOverlay -and $state.Route -in @('feeder', 'feeder-dx11', 'feeder-ats-dx11', 'feeder-overlay', 'feeder-overlay-dx11', 'feeder-ats-overlay')) {
                 'Preparar o menu do OptiScaler no jogo? O Forge guarda o RenoDX para poder restaurá-lo. Feche o jogo antes de continuar.'
             } else {
                 'Aplicar a instalação da prévia? Feche o jogo antes de continuar.'
@@ -492,7 +494,7 @@ function Invoke-GameOperation([string]$Action) {
             Start-Operation 'Restauração da resolução' $forge @('dlss5', '--game', $target, '--restore-resolution')
         }
         'Undo' {
-            $message = if ($state.Route -in @('feeder-overlay', 'feeder-overlay-dx11', 'feeder-ats-recovery')) {
+            $message = if ($state.Route -in @('feeder-overlay', 'feeder-overlay-dx11', 'feeder-ats-overlay')) {
                 'Remover o menu OptiScaler e voltar ao RenoDX no Feeder?'
             } else {
                 'Remover a instalação do jogo? Na rota Feeder, o DLSS5oneclick remove os componentes neurais e pode manter o ReShade.'

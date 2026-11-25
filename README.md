@@ -63,6 +63,8 @@ Select the game and use the automatically detected **OptiScaler** route. For Dir
 3. For a supported 64-bit DirectX 11 or 12 game, enable **Adicionar menu OptiScaler ao Feeder**. In DirectX 11, select **Detectar automaticamente** or **Upscaler (OptiFG)** as the Frame Generation input. The DirectX 11 bridge requires a compatible swap chain and an active upscaler input. Select the graphics options, generate a fresh preview, and apply it. RenderLatch stores the original ReShade loader and RenoDX add-on so it can restore them later.
 4. In the OptiScaler menu, use **OptiFG (Upscaler)** as the Frame Generation input when the game has no native FG input. Choose a compatible **FG Output**. Use **Save INI** and restart the game when changing the output.
 
+American Truck Simulator in DirectX 11 uses a compatibility profile for Feeder + OptiScaler. RenderLatch leaves the Frame Generation bridge disabled on that profile so the game can start. Press **Insert** to enable DLSS 5 Neural Rendering.
+
 The Feeder supplies a synthetic DLSS input using frame data from the game. OptiFG is experimental. HUD artifacts, intermittent interpolation, or an unavailable option are possible. The PEAK DirectX 12 setup has been tested with DLSS FG on an RTX 5060. That result does not establish compatibility with other games or GPUs.
 
 ## Performance and recovery

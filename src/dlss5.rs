@@ -1069,13 +1069,13 @@ pub fn cmd(args: &[String]) -> i32 {
     let force = has(args, "--force");
     let installed_opti = dest.join(MARK).join("install.txt").is_file();
     let use_feeder = feeder_selected || (!has_native && !force && !installed_opti);
-    // Prism3D stalls with the DX11 ReShade/OptiScaler hybrid in American Truck Simulator.
+    // Prism3D needs a plain DX11 swap chain during startup.
     let ats_dx11 = use_feeder && oneclick_installed
         && exe.file_name().is_some_and(|name| name.eq_ignore_ascii_case("amtrucks.exe"))
         && matches!(feeder_graphics_api(&exe, dest), "DX11" | "DX11 (Unity)");
     if has(args, "--route") {
         let route = if ats_dx11 && has(args, "--route-details") {
-            if hybrid_installed { "feeder-ats-recovery" } else { "feeder-ats-dx11" }
+            if hybrid_installed { "feeder-ats-overlay" } else { "feeder-ats-dx11" }
         } else if hybrid_installed && has(args, "--route-details") && matches!(feeder_graphics_api(&exe, dest), "DX11" | "DX11 (Unity)") {
             "feeder-overlay-dx11"
         } else if hybrid_installed {
@@ -1099,13 +1099,6 @@ pub fn cmd(args: &[String]) -> i32 {
         };
         println!("{route}");
         return 0;
-    }
-    if ats_dx11 && (menu_requested || hybrid_installed) {
-        eprintln!("No American Truck Simulator em DX11, o menu OptiScaler pode travar a inicialização. Use o Feeder com ReShade.");
-        if hybrid_installed {
-            eprintln!("Use Desfazer instalação para restaurar o Feeder.");
-        }
-        return 2;
     }
     let feeder_overlay = oneclick_installed && (menu_requested || hybrid_installed);
     if use_feeder && !feeder_overlay {
@@ -1216,6 +1209,15 @@ pub fn cmd(args: &[String]) -> i32 {
             ("Plugins", "LoadReshade", "true"), ("Inputs", "EnableDlssInputs", "true"),
             ("Hooks", "HookOriginalNvngxOnly", "false"),
         ]);
+        if ats_dx11 {
+            // The fork can create the FG swap chain even with FrameGen.Enabled=false.
+            profile.settings.retain(|(section, _, _)| *section != "FrameGen");
+            profile.settings.extend([
+                ("FrameGen", "Enabled", "false"), ("FrameGen", "FGInput", "nofg"),
+                ("FrameGen", "FGOutput", "nofg"), ("Spoofing", "DxgiFactoryWrapping", "false"),
+            ]);
+            println!("  American Truck Simulator · DX11: inicialização sem a ponte de Frame Generation.");
+        }
         println!("  OptiScaler via {proxy} (Insert) carrega o ReShade e o Feeder.");
         if !dest.join(MARK).join(FEEDER_RESHADE_BACKUP).is_file() {
             println!("  O dxgi.dll do OneClick será guardado para restaurar o carregamento original ao desfazer.");
@@ -1526,7 +1528,7 @@ pub fn cmd(args: &[String]) -> i32 {
     println!();
     println!("  {}", bold("NO JOGO"));
     println!("    {} o overlay do OptiScaler abre com Insert", dim("1."));
-    println!("    {} 'Enable Neural Rendering' deve estar ligado (ja deixamos ligado)", dim("2."));
+    println!("    {} Ative 'Enable Neural Rendering' no menu para usar o DLSS 5.", dim("2."));
     println!("    {} F6 compara com/sem DLSS 5", dim("3."));
     println!("    {} escala do modelo: {} (VRAM {} MB)", dim("4."), cya(&scale), vram);
     println!();
