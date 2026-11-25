@@ -82,21 +82,28 @@ try {
         $product = (Get-Item -LiteralPath "$game\dxgi.dll").VersionInfo.ProductName
         if ($product -notmatch 'OptiScaler|ReShade') { throw 'dxgi.dll pertence a outro componente. Resolva o conflito de carregadores antes de instalar.' }
     }
+    $gameName = [IO.Path]::GetFileName($GameExe)
+    $isSonsOfTheForest = $gameName -eq 'SonsOfTheForest.exe'
+    $gpuNames = if ($Generator -eq 'auto' -or $isSonsOfTheForest) { (Get-CimInstance Win32_VideoController).Name }
+    # The optical input stands aside when Unity starts calling native DLSS inside the world.
+    $useDx11DlssBridge = $isSonsOfTheForest -and ($gpuNames -match '\bRTX\b')
     $output = switch ($Generator) {
         'fsr' { 'fsrfg' }
         'xess' { 'xefg' }
         'auto' {
-            if ((Get-CimInstance Win32_VideoController).Name -match 'RTX (40|50)') { 'f5low' } else { 'fsrfg' }
+            if ($gpuNames -match 'RTX (40|50)') { 'f5low' } else { 'fsrfg' }
         }
         default { 'f5low' }
     }
-    # ETS2 rejects the private Streamline context. The standard OptiScaler DLSS-G output initializes on DX11.
-    if ([IO.Path]::GetFileName($GameExe) -eq 'eurotrucks2.exe' -and $output -eq 'f5low' -and $Generator -ne 'tensor') {
+    # These games need standard DLSS-G when the private F5Low Streamline path fails on DX11.
+    if ($gameName -in @('eurotrucks2.exe', 'SonsOfTheForest.exe') -and $output -eq 'f5low' -and $Generator -ne 'tensor') {
         $output = 'dlssg'
     }
     $engine = if ($Generator -eq 'tensor') { 'xefg_tensor' } else { 'dlssg' }
     Write-Output "Optical F5Low 0.1.39 | $GameExe | $proxy | FGOutput=$output"
     if ($output -eq 'f5low') { Write-Output "Gerador F5Low: $engine" }
+    if ($isSonsOfTheForest) { Write-Output 'Compatibilidade: overlays Steam/Epic e Steam Input bloqueados neste jogo.' }
+    if ($useDx11DlssBridge) { Write-Output 'Neural Rendering: ponte DLSS DX11 (dlss_12) para o DLSS nativo durante a partida.' }
     Write-Output 'Entrada optica do OptiScaler. Ative Frame Generation pelo menu Insert dentro do jogo.'
     if ($Action -eq 'Preview') { Write-Output "Pacote de 201 MB em cache local, com backup em $store"; return }
     $iniPath = Join-Path $game 'OptiScaler.ini'
@@ -104,6 +111,8 @@ try {
         $ini = [IO.File]::ReadAllText($iniPath)
         $ini = Set-Value $ini FrameGen FGOutput $output
         $ini = Set-Value $ini F5Low FrameGenerator $engine
+        if ($isSonsOfTheForest) { $ini = Set-Value $ini Hotfix DisableOverlays true }
+        if ($useDx11DlssBridge) { $ini = Set-Value $ini Upscalers Dx11Upscaler dlss_12 }
         $pending = Join-Path $store 'profile.tmp'
         [IO.File]::WriteAllText($pending,$ini)
         [IO.File]::Replace($pending,$iniPath,(Join-Path $store 'previous-profile.ini'))
@@ -125,6 +134,8 @@ try {
             @('F5Low','FrameGenerator',$engine),@('DlssNr','Enabled','false'),@('DlssNr','NativeMotion','true'),
             @('DlssNr','NativeUpscaler','true'),@('DlssNr','NativeDepthFinder','true'),@('Plugins','LoadReshade','false')
         )) { $ini = Set-Value $ini $setting[0] $setting[1] $setting[2] }
+        if ($isSonsOfTheForest) { $ini = Set-Value $ini Hotfix DisableOverlays true }
+        if ($useDx11DlssBridge) { $ini = Set-Value $ini Upscalers Dx11Upscaler dlss_12 }
         [IO.File]::WriteAllText("$work\OptiScaler.ini",$ini)
         if (Test-Path -LiteralPath $store) {
             # No journal means staging was interrupted before any game file moved.
