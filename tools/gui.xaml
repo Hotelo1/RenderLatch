@@ -45,6 +45,23 @@
             <Setter Property="Padding" Value="18"/>
             <Setter Property="Margin" Value="0,0,0,14"/>
         </Style>
+        <Style x:Key="ToolIcon" TargetType="Border">
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="CornerRadius" Value="9"/>
+            <Setter Property="Background" Value="#22362F"/>
+            <Setter Property="VerticalAlignment" Value="Top"/>
+            <Setter Property="Margin" Value="0,0,12,0"/>
+        </Style>
+        <Style x:Key="ToolIconGlyph" TargetType="TextBlock" BasedOn="{StaticResource Glyph}">
+            <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+            <Setter Property="FontSize" Value="17"/>
+        </Style>
+        <Style x:Key="ToolRowTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
         <Style TargetType="Button">
             <Setter Property="Background" Value="#232C30"/>
             <Setter Property="Foreground" Value="#F2F5F4"/>
@@ -106,8 +123,9 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
                         <Border x:Name="InputFrame" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}">
-                            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                                BorderThickness="1" CornerRadius="8">
+                            <ScrollViewer x:Name="PART_ContentHost" Padding="{TemplateBinding Padding}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsKeyboardFocusWithin" Value="True">
@@ -349,16 +367,42 @@
                         <TextBlock Text="RenderLatch" FontSize="16" FontWeight="SemiBold"/>
                     </StackPanel>
                 </StackPanel>
-                <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource Edge}" BorderThickness="0,1,0,0" Padding="2,12,2,0">
-                    <StackPanel>
-                        <TextBlock Text="Kit OptiScaler" Style="{StaticResource Caption}" FontSize="12"/>
-                        <TextBlock x:Name="KitStatus" FontSize="13" FontWeight="SemiBold" Margin="0,3,0,0" TextWrapping="Wrap"/>
-                        <StackPanel x:Name="AppUpdate" Visibility="Collapsed" Margin="0,14,0,0">
-                            <TextBlock x:Name="AppUpdateStatus" Style="{StaticResource Caption}" FontSize="12" Margin="0,0,0,5"/>
-                            <Button x:Name="AppUpdateButton" Content="Verificar atualização" Padding="6,7"/>
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
+                <StackPanel x:Name="AppUpdate" DockPanel.Dock="Bottom" Visibility="Collapsed">
+                    <TextBlock x:Name="AppUpdateStatus" Style="{StaticResource Caption}" FontSize="12"
+                               Visibility="Collapsed" Margin="0,0,0,7" AutomationProperties.LiveSetting="Polite"/>
+                    <Button x:Name="AppUpdateButton" MinHeight="38" Padding="8,5" Background="#1A2226"
+                            ToolTip="Verificar atualizações do RenderLatch" AutomationProperties.Name="Verificar atualizações do RenderLatch">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="UpdateFrame" Background="{TemplateBinding Background}" CornerRadius="7"
+                                        Padding="{TemplateBinding Padding}" BorderThickness="1" BorderBrush="#29373A">
+                                    <ContentPresenter VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="UpdateFrame" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                    </Trigger>
+                                    <Trigger Property="IsKeyboardFocused" Value="True">
+                                        <Setter TargetName="UpdateFrame" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="UpdateFrame" Property="Opacity" Value="0.78"/>
+                                    </Trigger>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter TargetName="UpdateFrame" Property="Opacity" Value="0.56"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <DockPanel LastChildFill="True">
+                            <TextBlock x:Name="AppVersion" DockPanel.Dock="Right" FontSize="10" FontWeight="Normal"
+                                       VerticalAlignment="Center" Margin="4,0,0,0"/>
+                            <TextBlock DockPanel.Dock="Left" Style="{StaticResource Glyph}" Text="&#xE72C;" FontSize="12" Margin="0,0,6,0"/>
+                            <TextBlock x:Name="AppUpdateLabel" Text="Atualizações" FontSize="12" TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"/>
+                        </DockPanel>
+                    </Button>
+                </StackPanel>
                 <StackPanel>
                     <RadioButton x:Name="NavGames" Style="{StaticResource Navigation}" GroupName="Page" IsChecked="True">
                         <StackPanel Orientation="Horizontal">
@@ -390,16 +434,107 @@
             </Grid.RowDefinitions>
             <Grid Margin="24,24,24,16">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition x:Name="WorkColumn" Width="62*" MinWidth="400"/>
+                    <ColumnDefinition Width="62*" MinWidth="400"/>
                     <ColumnDefinition Width="18"/>
-                    <ColumnDefinition x:Name="ActivityColumn" Width="38*" MinWidth="266"/>
+                    <ColumnDefinition Width="38*" MinWidth="266"/>
                 </Grid.ColumnDefinitions>
                 <ScrollViewer x:Name="WorkScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <Grid>
                         <StackPanel x:Name="GamePage">
-                            <TextBlock Text="Jogos" Style="{StaticResource PageTitle}"/>
-                            <TextBlock Text="Configure o DLSS 5 e o Frame Generation por jogo."
-                                       Style="{StaticResource Caption}" Margin="0,4,0,20"/>
+                            <StackPanel x:Name="LibraryView">
+                                <DockPanel Margin="0,0,0,6" LastChildFill="True">
+                                    <Button x:Name="FindGames" DockPanel.Dock="Right" Content="Atualizar lista"
+                                            VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                    <TextBlock Text="Biblioteca de jogos" Style="{StaticResource PageTitle}" TextWrapping="Wrap"/>
+                                </DockPanel>
+                                <TextBlock Text="Escolha um jogo para configurar o DLSS e o Frame Generation."
+                                           Style="{StaticResource Caption}" FontSize="14" Margin="0,0,0,18"/>
+                                <DockPanel Margin="0,0,0,16" LastChildFill="True">
+                                    <Button x:Name="ManualGame" DockPanel.Dock="Right" Content="Selecionar manualmente"
+                                            Margin="10,0,0,0"/>
+                                    <Grid>
+                                        <TextBox x:Name="LibrarySearch" Style="{StaticResource Input}" MinHeight="44" FontSize="14"
+                                                 Padding="40,6,14,6" AutomationProperties.Name="Buscar por jogo ou loja"/>
+                                        <TextBlock Text="&#xE721;" Style="{StaticResource Glyph}" Foreground="{StaticResource Muted}"
+                                                   FontSize="15" HorizontalAlignment="Left" Margin="14,0,0,0" IsHitTestVisible="False"/>
+                                        <TextBlock Text="Buscar por jogo ou loja" Foreground="{StaticResource Muted}" Margin="43,0,14,0"
+                                                   FontSize="{Binding FontSize, ElementName=LibrarySearch}"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis" IsHitTestVisible="False">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Text, ElementName=LibrarySearch}" Value="">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
+                                </DockPanel>
+                                <TextBlock x:Name="LibraryStatus" Style="{StaticResource Caption}" Margin="0,0,0,12"
+                                           AutomationProperties.LiveSetting="Polite"/>
+                                <ItemsControl x:Name="LibraryTiles" AutomationProperties.Name="Jogos instalados">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Tag="{Binding}" ToolTip="{Binding Folder}" MinHeight="0"
+                                                    AutomationProperties.Name="{Binding Name}" Width="156" Margin="0,0,12,12"
+                                                    Padding="0" HorizontalContentAlignment="Stretch">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="Tile" CornerRadius="11" Background="#151C20"
+                                                                BorderBrush="{StaticResource Edge}" BorderThickness="1">
+                                                            <ContentPresenter/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="Tile" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                                                <Setter TargetName="Tile" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsPressed" Value="True">
+                                                                <Setter TargetName="Tile" Property="Background" Value="#24352C"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                                <StackPanel>
+                                                    <Grid Height="216" Margin="5,5,5,0" ClipToBounds="True">
+                                                        <Border CornerRadius="7">
+                                                            <Border.Background>
+                                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                    <GradientStop Color="#28463C" Offset="0"/>
+                                                                    <GradientStop Color="#22323D" Offset="0.55"/>
+                                                                    <GradientStop Color="#172024" Offset="1"/>
+                                                                </LinearGradientBrush>
+                                                            </Border.Background>
+                                                        </Border>
+                                                        <TextBlock Style="{StaticResource Glyph}" Text="&#xE7FC;"
+                                                                   Foreground="{StaticResource Accent}" FontSize="30"/>
+                                                        <Image Source="{Binding Icon}" Width="54" Height="54"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <Image Source="{Binding Artwork}" Stretch="UniformToFill" SnapsToDevicePixels="True"/>
+                                                    </Grid>
+                                                    <StackPanel Margin="10,8,10,9">
+                                                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"
+                                                                   TextWrapping="Wrap" Height="34" TextTrimming="CharacterEllipsis"/>
+                                                        <TextBlock Text="{Binding Store}" Foreground="{StaticResource Muted}"
+                                                                   FontSize="11" Margin="0,4,0,0"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                            <StackPanel x:Name="GameDetails" Visibility="Collapsed">
+                            <Button x:Name="BackToLibrary" Content="‹  Voltar à biblioteca" Style="{StaticResource Quiet}"
+                                    HorizontalAlignment="Left" Margin="0,0,0,12"/>
                             <Border Style="{StaticResource Card}" BorderBrush="#35473E">
                                 <Border.Background>
                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
@@ -413,18 +548,18 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <Border Width="46" Height="46" CornerRadius="11" Background="#2C4235" Margin="0,0,12,0">
-                                            <TextBlock Style="{StaticResource Glyph}" Text="&#xE7FC;" Foreground="{StaticResource Accent}" FontSize="22"/>
+                                        <Border Width="54" Height="64" CornerRadius="8" Background="#2C4235" Margin="0,0,12,0">
+                                            <Grid ClipToBounds="True">
+                                                <TextBlock Style="{StaticResource Glyph}" Text="&#xE7FC;" Foreground="{StaticResource Accent}" FontSize="22"/>
+                                                <Image x:Name="SelectedGameCover" Stretch="UniformToFill"/>
+                                            </Grid>
                                         </Border>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,10,0">
                                             <TextBlock x:Name="GameSelection" Style="{StaticResource SectionTitle}"
                                                        TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
                                             <TextBlock x:Name="SelectionHint" Style="{StaticResource Caption}" Margin="0,3,0,0"/>
                                         </StackPanel>
-                                        <Button x:Name="FindGames" Grid.Column="2" Content="Detectar jogos" Style="{StaticResource Primary}"
-                                                VerticalAlignment="Center" Padding="15,7"/>
                                     </Grid>
                                     <Border BorderBrush="#364740" BorderThickness="0,1,0,0" Margin="0,14,0,0" Padding="0,5,0,0">
                                         <Expander x:Name="ManualTarget" Header="Selecionar manualmente">
@@ -527,71 +662,121 @@
                                     </Expander>
                                 </StackPanel>
                             </Border>
+                            </StackPanel>
                         </StackPanel>
 
                         <StackPanel x:Name="PcPage" Visibility="Collapsed">
-                            <TextBlock Text="Diagnóstico" Style="{StaticResource PageTitle}"/>
-                            <TextBlock Text="Confira o hardware e a compatibilidade deste PC com DLSS 5." Style="{StaticResource Caption}" Margin="0,4,0,16"/>
-                            <Border Style="{StaticResource Card}">
+                            <TextBlock Text="Diagnóstico do PC" Style="{StaticResource PageTitle}" Margin="0,0,0,18"/>
+                            <Border Style="{StaticResource Card}" BorderBrush="#355044">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#20332C" Offset="0"/>
+                                        <GradientStop Color="#171F22" Offset="0.86"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
                                 <StackPanel>
-                                    <TextBlock Text="Hardware" Style="{StaticResource SectionTitle}"/>
-                                    <TextBlock Text="Processador, GPU, VRAM, memória e link PCIe." Style="{StaticResource Caption}" Margin="0,4,0,12"/>
-                                    <Button x:Name="Detect" Content="Detectar hardware" HorizontalAlignment="Left" Style="{StaticResource Primary}"/>
+                                    <DockPanel LastChildFill="True">
+                                        <Border DockPanel.Dock="Left" Style="{StaticResource ToolIcon}">
+                                            <TextBlock Style="{StaticResource ToolIconGlyph}" Text="&#xE7F4;"/>
+                                        </Border>
+                                        <StackPanel>
+                                            <TextBlock Text="Hardware" Style="{StaticResource SectionTitle}"/>
+                                            <TextBlock Text="CPU, GPU, memória, VRAM e conexão PCIe."
+                                                       Style="{StaticResource Caption}" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <Button x:Name="Detect" Content="Detectar hardware" HorizontalAlignment="Left"
+                                            Style="{StaticResource Primary}" Margin="0,15,0,0"/>
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
-                                    <TextBlock Text="Compatibilidade e ajustes" Style="{StaticResource SectionTitle}"/>
-                                    <TextBlock Text="Veja os ajustes recomendados ou confira as pendências do PC."
-                                               Style="{StaticResource Caption}" Margin="0,4,0,12"/>
-                                    <WrapPanel>
-                                        <Button x:Name="Plan" Content="Ver plano" Margin="0,0,8,0"/>
-                                        <Button x:Name="Doctor" Content="Ver pendências"/>
-                                    </WrapPanel>
+                                    <TextBlock Text="Análise do sistema" Style="{StaticResource SectionTitle}" Margin="0,0,0,13"/>
+                                    <DockPanel LastChildFill="True">
+                                        <Button x:Name="Plan" DockPanel.Dock="Right" Content="Ver plano" Width="116" Margin="12,0,0,0"
+                                                VerticalAlignment="Center"/>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Plano de desempenho" Style="{StaticResource ToolRowTitle}"/>
+                                            <TextBlock Text="Ajustes sugeridos para o seu hardware." Style="{StaticResource Caption}" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <Border BorderBrush="{StaticResource Edge}" BorderThickness="0,1,0,0" Margin="0,13,0,0" Padding="0,13,0,0">
+                                        <DockPanel LastChildFill="True">
+                                            <Button x:Name="Doctor" DockPanel.Dock="Right" Content="Ver pendências" Width="116" Margin="12,0,0,0"
+                                                    VerticalAlignment="Center"/>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="Compatibilidade" Style="{StaticResource ToolRowTitle}"/>
+                                                <TextBlock Text="Verifique requisitos e pendências do PC." Style="{StaticResource Caption}" Margin="0,3,0,0"/>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
 
                         <StackPanel x:Name="ToolsPage" Visibility="Collapsed">
-                            <TextBlock Text="Ferramentas" Style="{StaticResource PageTitle}"/>
-                            <TextBlock Text="Gerencie o kit e os utilitários usados pelo Forge." Style="{StaticResource Caption}" Margin="0,4,0,16"/>
+                            <TextBlock Text="Ferramentas" Style="{StaticResource PageTitle}" Margin="0,0,0,18"/>
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
-                                    <TextBlock Text="Kit de gráficos" Style="{StaticResource SectionTitle}"/>
-                                    <TextBlock Text="Instala OptiScaler, Streamline, o modelo NVIDIA e o DLSS5oneclick em uma etapa. A primeira vez pode baixar cerca de 700 MB."
-                                               Style="{StaticResource Caption}" Margin="0,4,0,12"/>
-                                    <WrapPanel>
-                                        <Button x:Name="Download" Content="Baixar kit completo" Style="{StaticResource Primary}" Margin="0,0,8,4"/>
-                                        <Button x:Name="ImportModel" Content="Importar modelo NVIDIA…" Margin="0,0,0,4"/>
-                                    </WrapPanel>
+                                    <DockPanel LastChildFill="True">
+                                        <Border DockPanel.Dock="Left" Style="{StaticResource ToolIcon}">
+                                            <TextBlock Style="{StaticResource ToolIconGlyph}" Text="&#xE896;"/>
+                                        </Border>
+                                        <StackPanel>
+                                            <TextBlock Text="Kit de gráficos" Style="{StaticResource SectionTitle}"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <Ellipse Width="6" Height="6" Margin="0,0,6,0"
+                                                         Fill="{Binding Foreground, ElementName=KitStatus}"/>
+                                                <TextBlock x:Name="KitStatus" FontSize="12"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <TextBlock Text="OptiScaler, Streamline, modelo NVIDIA e DLSS5oneclick. O primeiro download pode chegar a 700 MB."
+                                               Style="{StaticResource Caption}" Margin="0,12,0,13"/>
+                                    <Button x:Name="Download" Content="Baixar kit completo" Style="{StaticResource Primary}"
+                                            HorizontalAlignment="Left"/>
+                                    <Border BorderBrush="{StaticResource Edge}" BorderThickness="0,1,0,0" Margin="0,15,0,0" Padding="0,12,0,0">
+                                        <DockPanel LastChildFill="True">
+                                            <Button x:Name="ImportModel" DockPanel.Dock="Right" Content="Importar modelo…"
+                                                    Margin="12,0,0,0" VerticalAlignment="Center"/>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="Modelo NVIDIA local" Style="{StaticResource ToolRowTitle}"/>
+                                                <TextBlock Text="Use uma cópia já baixada." Style="{StaticResource Caption}" Margin="0,3,0,0"/>
+                                            </StackPanel>
+                                        </DockPanel>
+                                    </Border>
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource Card}">
                                 <StackPanel>
-                                    <TextBlock Text="DLSS5oneclick" Style="{StaticResource SectionTitle}"/>
-                                    <TextBlock x:Name="OneClickStatus" Style="{StaticResource Caption}" Margin="0,4,0,12"/>
-                                    <WrapPanel>
-                                        <Button x:Name="ChooseOneClick" Content="Usar outro executável…" Margin="0,0,8,4"/>
-                                        <Button x:Name="OneClickReleases" Content="Abrir releases" Style="{StaticResource Quiet}" Margin="0,0,0,4"/>
+                                    <DockPanel LastChildFill="True">
+                                        <Border DockPanel.Dock="Left" Style="{StaticResource ToolIcon}">
+                                            <TextBlock Style="{StaticResource ToolIconGlyph}" Text="&#xE713;"/>
+                                        </Border>
+                                        <StackPanel>
+                                            <TextBlock Text="DLSS5oneclick" Style="{StaticResource SectionTitle}"/>
+                                            <TextBlock x:Name="OneClickStatus" Style="{StaticResource Caption}" Margin="0,3,0,0"/>
+                                        </StackPanel>
+                                    </DockPanel>
+                                    <WrapPanel Margin="0,13,0,-4">
+                                        <Button x:Name="ChooseOneClick" Content="Usar outro executável…" Margin="0,0,7,4"/>
+                                        <Button x:Name="OneClickReleases" Content="Releases no GitHub" Style="{StaticResource Quiet}" Margin="0,0,0,4"/>
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>
                             <Border x:Name="DeveloperTools" Style="{StaticResource Card}">
-                                <StackPanel>
-                                    <TextBlock Text="Desenvolvimento" Style="{StaticResource SectionTitle}"/>
-                                    <TextBlock Text="Recompile o executável do Forge para esta CPU ou abra o menu de terminal."
-                                               Style="{StaticResource Caption}" Margin="0,4,0,12"/>
-                                    <WrapPanel>
+                                <Expander Header="Ferramentas de desenvolvimento">
+                                    <WrapPanel Margin="0,9,0,0">
                                         <Button x:Name="Build" Content="Recompilar Forge" Margin="0,0,8,0"/>
                                         <Button x:Name="Menu" Content="Abrir menu CLI"/>
                                     </WrapPanel>
-                                </StackPanel>
+                                </Expander>
                             </Border>
                         </StackPanel>
                     </Grid>
                 </ScrollViewer>
 
-                <Border x:Name="ActivityPane" Grid.Column="2" Style="{StaticResource Card}" Padding="12" Margin="0">
+                <Border x:Name="ActivityPane" Grid.Column="2" Style="{StaticResource Card}" Padding="12" Margin="0" Visibility="Collapsed">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -641,7 +826,7 @@
                 </Border>
             </Grid>
 
-            <Border x:Name="InstallBar" Grid.Row="1" BorderBrush="{StaticResource Edge}" BorderThickness="0,1,0,0"
+            <Border x:Name="InstallBar" Grid.Row="1" Visibility="Collapsed" BorderBrush="{StaticResource Edge}" BorderThickness="0,1,0,0"
                     Padding="24,13" Background="#161F22">
                 <Grid>
                     <Grid.ColumnDefinitions>

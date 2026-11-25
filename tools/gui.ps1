@@ -16,18 +16,17 @@ $kitScript = Join-Path $PSScriptRoot 'fetch-dlss5.ps1'
 $menuScript = Join-Path $PSScriptRoot 'menu.ps1'
 $gameScan = Join-Path $PSScriptRoot 'find-games.ps1'
 $updateScript = Join-Path $PSScriptRoot 'update-app.ps1'
-$libraryLayout = Join-Path $PSScriptRoot 'game-library.xaml'
 $runtimeFolder = if ($RuntimeRoot) { $RuntimeRoot } else { Join-Path $root 'runtime' }
 $kitFolder = Join-Path $runtimeFolder 'dlss5'
 $managedOneClick = Join-Path $runtimeFolder 'tools\dlss5oneclick.exe'
 $defaultOneClick = Join-Path $PSScriptRoot 'dlss5oneclick.exe'
 $oneClickPreference = Join-Path $env:LOCALAPPDATA 'RenderLatch\oneclick-path.txt'
 $psExe = Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe'
-$state = @{ Job = $null; PreviewedPath = $null; OneClick = $null; SelectedGame = $null; Route = '' }
+$state = @{ Job = $null; PreviewedPath = $null; OneClick = $null; SelectedGame = $null; Route = ''; Games = @(); LibraryError = $false }
 $appVersion = if ($Standalone -and [IO.File]::Exists($forge)) {
     [Diagnostics.FileVersionInfo]::GetVersionInfo($forge).ProductVersion
 }
-$updateState = @{ Check = $null; Tag = ''; NextCheck = [datetime]::MinValue }
+$updateState = @{ Check = $null; Tag = ''; NextCheck = [datetime]::MinValue; ManualCheck = $false }
 
 try {
     $xaml = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'gui.xaml'))
@@ -38,13 +37,14 @@ try {
 }
 
 $ui = @{}
-foreach ($name in @('NavGames', 'NavPc', 'NavTools', 'WorkScroll', 'WorkColumn', 'ActivityColumn', 'GamePage', 'PcPage', 'ToolsPage',
+foreach ($name in @('NavGames', 'NavPc', 'NavTools', 'WorkScroll', 'GamePage', 'PcPage', 'ToolsPage',
         'GameSelection', 'SelectionHint', 'RouteSummary', 'OptiOptions', 'OptiOptionsHint', 'OneClickStatus', 'KitStatus',
+        'LibraryView', 'LibrarySearch', 'LibraryStatus', 'LibraryTiles', 'ManualGame', 'GameDetails', 'BackToLibrary', 'SelectedGameCover',
         'AppLogo', 'ManualTarget', 'GamePath', 'Browse', 'BrowseExe', 'FindGames', 'ChooseOneClick', 'OneClickReleases', 'UseFeeder',
         'InstallBar', 'InstallTitle', 'GameHint', 'Preview', 'Apply', 'Inventory', 'Undo', 'Optimize', 'RestoreResolution',
         'OpticalF5', 'OpticalOptions', 'OpticalGenerator', 'Upscaler', 'FrameGen', 'FrameGenSource', 'FrameGenInput', 'UseInGameMenu', 'Detect', 'Plan', 'Doctor',
         'Download', 'ImportModel', 'DeveloperTools', 'Build', 'Menu', 'ActivityPane', 'Activity', 'OperationCard', 'OperationTitle', 'OperationResult',
-        'ExpandLog', 'CopyLog', 'ClearLog', 'Status', 'Progress', 'AppUpdate', 'AppUpdateButton', 'AppUpdateStatus')) {
+        'ExpandLog', 'CopyLog', 'ClearLog', 'Status', 'Progress', 'AppUpdate', 'AppVersion', 'AppUpdateButton', 'AppUpdateLabel', 'AppUpdateStatus')) {
     $ui[$name] = $window.FindName($name)
 }
 
@@ -72,6 +72,14 @@ function Get-OneClickPath {
 function Update-Controls {
     $busy = $null -ne $state.Job
     $ui.AppUpdateButton.IsEnabled = !$busy -and !$updateState.Check
+    $ui.AppUpdateLabel.Text = if ($state.Job -and $state.Job.AppUpdate) { 'Baixando…' }
+        elseif ($updateState.Tag) { 'Atualizar' } else { 'Atualizações' }
+    $ui.AppVersion.Text = if ($updateState.Tag) { $updateState.Tag } elseif ($appVersion) { "v$appVersion" }
+    $ui.AppUpdateButton.Background = if ($updateState.Tag) { $window.FindResource('Accent') } else { '#1A2226' }
+    $ui.AppUpdateButton.Foreground = if ($updateState.Tag) { '#182611' } else { $window.FindResource('WindowText') }
+    $updateAction = if ($updateState.Tag) { "Atualizar para $($updateState.Tag)" } else { 'Verificar atualizações do RenderLatch' }
+    $ui.AppUpdateButton.ToolTip = $updateAction
+    [Windows.Automation.AutomationProperties]::SetName($ui.AppUpdateButton, $updateAction)
     $hasForge = [IO.File]::Exists($forge)
     $hasPath = -not [string]::IsNullOrWhiteSpace($ui.GamePath.Text)
     $kitFiles = @('dlss5\OptiScaler.dll', 'dlss5\OptiScaler.ini', 'dlss5\nvngx.dll_dlssnr.dll', 'dlss5\nvngx_dlssnr.dll',
@@ -80,11 +88,12 @@ function Update-Controls {
     $missingFiles = @($kitFiles | Where-Object { -not [IO.File]::Exists((Join-Path $runtimeFolder $_)) })
     $kitPresent = $missingFiles.Count -eq 0
 
-    $ui.KitStatus.Text = if ($kitPresent) { 'Kit disponível' } else { 'Kit incompleto' }
+    $ui.KitStatus.Text = if ($kitPresent) { 'Disponível' } else { 'Incompleto' }
     $ui.KitStatus.Foreground = $window.FindResource($(if ($kitPresent) { 'Accent' } else { 'Warning' }))
     $ui.KitStatus.ToolTip = if (-not $kitPresent) { $missingFiles -join [Environment]::NewLine }
     $ui.GamePath.IsEnabled = $ui.Browse.IsEnabled = $ui.BrowseExe.IsEnabled = -not $busy
-    $ui.FindGames.IsEnabled = -not $busy -and [IO.File]::Exists($gameScan) -and [IO.File]::Exists($libraryLayout)
+    $ui.FindGames.IsEnabled = -not $busy -and [IO.File]::Exists($gameScan)
+    $ui.ManualGame.IsEnabled = $ui.BackToLibrary.IsEnabled = $ui.LibraryTiles.IsEnabled = -not $busy
     foreach ($name in @('Detect', 'Plan', 'Doctor')) {
         $ui[$name].IsEnabled = $hasForge -and -not $busy
     }
@@ -127,9 +136,9 @@ function Update-Controls {
     $ui.FrameGenInput.IsEnabled = $needsSource -and -not $busy
     $ui.ChooseOneClick.IsEnabled = $ui.UseFeeder.IsEnabled = -not $busy
     $oneClick = Get-OneClickPath
-    $ui.OneClickStatus.Text = if ($oneClick -eq $managedOneClick) { 'Instalado pelo kit. Selecionado automaticamente para a rota Feeder.' }
-        elseif ($oneClick) { 'Executável local selecionado para a rota Feeder.' }
-        else { 'Disponível em Baixar kit completo.' }
+    $ui.OneClickStatus.Text = if ($oneClick -eq $managedOneClick) { 'Instalado pelo kit para a rota Feeder.' }
+        elseif ($oneClick) { 'Executável personalizado vinculado à rota Feeder.' }
+        else { 'Incluído no kit completo.' }
     $ui.OneClickStatus.ToolTip = $oneClick
     $ui.RouteSummary.Text = switch ($state.Route) {
         'feeder-new' { 'Feeder · primeira instalação' }
@@ -165,7 +174,8 @@ function Update-Controls {
     } else { 'Nenhum jogo selecionado' }
     $ui.SelectionHint.Text = if ($state.SelectedGame) {
         $state.SelectedGame.Store
-    } elseif ($hasPath) { 'Seleção manual' } else { 'Detecte jogos da Steam, Epic Games e GOG.' }
+    } elseif ($hasPath) { 'Seleção manual' } else { 'Escolha a pasta ou o executável.' }
+    $ui.SelectedGameCover.Source = if ($state.SelectedGame.Artwork) { $state.SelectedGame.Artwork } else { $state.SelectedGame.Icon }
     $ui.Build.IsEnabled = -not $busy -and [IO.File]::Exists($buildScript)
     $ui.Download.IsEnabled = -not $busy -and [IO.File]::Exists($kitScript)
     $ui.ImportModel.IsEnabled = $ui.Download.IsEnabled
@@ -224,11 +234,18 @@ function Join-WindowsArguments([string[]]$ArgumentList) {
     }) -join ' '
 }
 
-function Start-UpdateCheck {
+function Set-AppUpdateStatus([string]$Text, [string]$Tone = 'Muted', [string]$Details = '') {
+    $ui.AppUpdateStatus.Text = $Text
+    $ui.AppUpdateStatus.Foreground = $window.FindResource($Tone)
+    $ui.AppUpdateStatus.Visibility = if ($Text) { 'Visible' } else { 'Collapsed' }
+    $ui.AppUpdateStatus.ToolTip = if ($Details) { $Details }
+}
+
+function Start-UpdateCheck([switch]$Manual) {
     if ($updateState.Check -or $state.Job) { return }
     $updateState.NextCheck = [datetime]::UtcNow.AddMinutes(15)
-    $ui.AppUpdateStatus.Text = "v$appVersion · verificando…"
-    $ui.AppUpdateButton.IsEnabled = $false
+    $updateState.ManualCheck = $Manual.IsPresent
+    if ($Manual) { Set-AppUpdateStatus 'Verificando…' }
     $info = [Diagnostics.ProcessStartInfo]::new()
     $info.FileName = $psExe
     $info.Arguments = Join-WindowsArguments @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $updateScript,
@@ -247,10 +264,9 @@ function Start-UpdateCheck {
             ErrorOutput = $process.StandardError.ReadToEndAsync()
         }
     } catch {
-        $ui.AppUpdateStatus.Text = 'Falha ao verificar atualização'
-        $ui.AppUpdateStatus.ToolTip = $_.Exception.GetBaseException().Message
-        Update-Controls
+        Set-AppUpdateStatus 'Falha na verificação' 'Warning' $_.Exception.GetBaseException().Message
     }
+    Update-Controls
 }
 
 function Complete-UpdateDownload([string]$Output) {
@@ -278,7 +294,7 @@ function Start-Operation([string]$Label, [string]$FileName, [string[]]$ArgumentL
     if ($null -ne $state.Job) { return }
 
     $logStart = $ui.Activity.Text.Length
-    if (-not $RoutePath) { Add-Activity ('[{0}] {1}' -f (Get-Date -Format 'HH:mm:ss'), $Label) }
+    if (-not $RoutePath -and -not $GameLibrary) { Add-Activity ('[{0}] {1}' -f (Get-Date -Format 'HH:mm:ss'), $Label) }
     $info = [Diagnostics.ProcessStartInfo]::new()
     $info.FileName = $FileName
     $info.Arguments = Join-WindowsArguments $ArgumentList
@@ -319,7 +335,7 @@ function Start-Operation([string]$Label, [string]$FileName, [string[]]$ArgumentL
             @{ Reader = $process.StandardError; Pending = $process.StandardError.ReadLineAsync() }
         )
     }
-    if (-not $RoutePath) {
+    if (-not $RoutePath -and -not $GameLibrary) {
         $ui.Status.Text = "$Label em andamento…"
         Set-OperationCard $Label 'Em andamento…'
     }
@@ -379,8 +395,7 @@ $timer.Add_Tick({
             }
         } else {
             $updateState.Tag = ''
-            $ui.AppUpdateButton.Content = 'Verificar atualização'
-            $ui.AppUpdateStatus.Text = 'Falha ao baixar atualização'
+            Set-AppUpdateStatus 'Falha no download' 'Warning'
             Show-Error 'O executável atual foi preservado. Veja os detalhes em Atividade.'
         }
         return
@@ -393,6 +408,23 @@ $timer.Add_Tick({
         }
         if ($state.Route -eq 'optical-installed') { $ui.OpticalF5.IsChecked = $true }
         Update-Controls
+        return
+    }
+
+    if ($job.GameLibrary) {
+        try {
+            if ($code -ne 0) { throw 'A detecção de jogos não foi concluída.' }
+            # Windows PowerShell 5.1 returns a JSON array as one pipeline item.
+            [object[]]$games = ConvertFrom-Json -InputObject $job.Output.ToString()
+            foreach ($game in $games) { Set-GameArtwork $game }
+            $state.Games = $games
+            $state.LibraryError = $false
+        } catch {
+            $state.LibraryError = $true
+            Show-Error $_.Exception.GetBaseException().Message
+        }
+        Update-Controls
+        Update-Library
         return
     }
 
@@ -422,22 +454,6 @@ $timer.Add_Tick({
 
     if ($job.RefreshRoute) { Schedule-RouteCheck }
 
-    if ($job.GameLibrary -and $code -eq 0) {
-        try {
-            # Windows PowerShell 5.1 returns a JSON array as one pipeline item.
-            # Bind its elements directly so each game gets its own library row.
-            [object[]]$games = ConvertFrom-Json -InputObject $job.Output.ToString()
-            if (-not $games.Count) {
-                Add-Activity 'Nenhum jogo detectado. Use Pasta… ou .exe… para selecionar manualmente.'
-                $ui.Status.Text = 'Nenhum jogo detectado.'
-                return
-            }
-            Add-Activity "  $($games.Count) jogo(s) detectado(s)."
-            Show-GameLibrary $games
-        } catch {
-            Show-Error "Falha ao abrir a lista de jogos. $($_.Exception.GetBaseException().Message)"
-        }
-    }
 })
 
 $routeTimer = [Windows.Threading.DispatcherTimer]::new()
@@ -468,55 +484,53 @@ function Select-FolderForExe {
     if ([IO.File]::Exists($ui.GamePath.Text)) { return [IO.Path]::GetDirectoryName($ui.GamePath.Text) }
 }
 
-function Select-ForgeTarget([object[]]$Games) {
-    $dialog = [Windows.Markup.XamlReader]::Parse([IO.File]::ReadAllText($libraryLayout))
-    $dialog.Owner = $window
-    $dialog.Icon = $window.Icon
-    $dialog.Resources.MergedDictionaries.Add($window.Resources)
-    $search = $dialog.FindName('Search')
-    $list = $dialog.FindName('Results')
-    $count = $dialog.FindName('Count')
-    $empty = $dialog.FindName('EmptyResults')
-    $select = $dialog.FindName('SelectGame')
-    $list.ItemsSource = $Games
-    $count.Text = if ($Games.Count -eq 1) { '1 jogo encontrado' } else { "$($Games.Count) jogos encontrados" }
-    $search.Add_TextChanged({
-        $term = $search.Text.Trim()
-        $list.ItemsSource = @($Games | Where-Object {
-            $_.Name.IndexOf($term, [StringComparison]::CurrentCultureIgnoreCase) -ge 0 -or
-            $_.Store.IndexOf($term, [StringComparison]::CurrentCultureIgnoreCase) -ge 0
-        })
-        $count.Text = "$($list.Items.Count) de $($Games.Count) jogos"
-        $empty.Visibility = if ($list.Items.Count) { 'Collapsed' } else { 'Visible' }
-    })
-    $list.Add_SelectionChanged({ $select.IsEnabled = $null -ne $list.SelectedItem })
-    $select.Add_Click({ if ($list.SelectedItem) { $dialog.DialogResult = $true } })
-    $list.Add_MouseDoubleClick({
-        $row = [Windows.Controls.ItemsControl]::ContainerFromElement($list, $_.OriginalSource)
-        if ($row -is [Windows.Controls.ListBoxItem]) { $dialog.DialogResult = $true }
-    })
-    $search.Add_PreviewKeyDown({
-        if ($_.Key -eq 'Down' -and $list.Items.Count -gt 0) {
-            $list.SelectedIndex = 0
-            $list.ScrollIntoView($list.SelectedItem)
-            $row = $list.ItemContainerGenerator.ContainerFromIndex(0)
-            if ($row) { [void]$row.Focus() }
-            $_.Handled = $true
+function Set-GameArtwork($Game) {
+    $artwork = $null
+    $icon = $null
+    if ($Game.Cover) {
+        try {
+            $picture = [Windows.Media.Imaging.BitmapImage]::new()
+            $picture.BeginInit()
+            $picture.DecodePixelWidth = 320
+            $picture.CacheOption = 'OnLoad'
+            $picture.UriSource = [Uri]::new($Game.Cover, [UriKind]::Absolute)
+            $picture.EndInit()
+            $artwork = $picture
+        } catch {
+            # The card already has a placeholder beneath the image.
         }
-    })
-    $dialog.Add_ContentRendered({ [void]$search.Focus() })
-    if ($dialog.ShowDialog() -eq $true) { return $list.SelectedItem }
+    }
+    if ([IO.File]::Exists($Game.Target)) {
+        try {
+            $fileIcon = [Drawing.Icon]::ExtractAssociatedIcon($Game.Target)
+            if ($fileIcon) {
+                try {
+                    $icon = [Windows.Interop.Imaging]::CreateBitmapSourceFromHIcon($fileIcon.Handle,
+                        [Windows.Int32Rect]::Empty, [Windows.Media.Imaging.BitmapSizeOptions]::FromEmptyOptions())
+                } finally { $fileIcon.Dispose() }
+            }
+        } catch {
+            # Some executables have no readable icon.
+        }
+    }
+    Add-Member -InputObject $Game -NotePropertyName Artwork -NotePropertyValue $artwork
+    Add-Member -InputObject $Game -NotePropertyName Icon -NotePropertyValue $icon
 }
 
-function Show-GameLibrary([object[]]$Games) {
-    $selected = Select-ForgeTarget $Games
-    if ($selected) {
-        $state.SelectedGame = $selected
-        $ui.GamePath.Text = $selected.Target
-        $ui.ManualTarget.IsExpanded = $false
-        Update-Controls
-        $ui.Status.Text = "$($selected.Name) selecionado"
-    }
+function Update-Library {
+    $term = $ui.LibrarySearch.Text.Trim()
+    $visible = @($state.Games | Where-Object {
+        $_.Name.IndexOf($term, [StringComparison]::CurrentCultureIgnoreCase) -ge 0 -or
+        $_.Store.IndexOf($term, [StringComparison]::CurrentCultureIgnoreCase) -ge 0
+    })
+    $ui.LibraryTiles.ItemsSource = $visible
+    $ui.LibraryStatus.Text = if ($state.Job -and $state.Job.GameLibrary) { 'Buscando jogos instalados…' }
+        elseif ($state.LibraryError) { 'Falha ao atualizar a biblioteca. Tente novamente ou selecione manualmente.' }
+        elseif (!$state.Games.Count) { 'Nenhum jogo encontrado na Steam, Epic Games ou GOG.' }
+        elseif (!$visible.Count) { 'Nenhum jogo corresponde à busca.' }
+        elseif ($term) { "$($visible.Count) de $($state.Games.Count) jogos" }
+        elseif ($visible.Count -eq 1) { '1 jogo instalado' }
+        else { "$($visible.Count) jogos instalados" }
 }
 
 function Get-GameTarget {
@@ -621,9 +635,34 @@ $ui.BrowseExe.Add_Click({
     if ($folder) { $dialog.InitialDirectory = $folder }
     if ($dialog.ShowDialog($window) -eq $true) { $ui.GamePath.Text = $dialog.FileName }
 })
-$ui.FindGames.Add_Click({
+function Scan-GameLibrary {
+    if ($state.Job -or ![IO.File]::Exists($gameScan)) { return }
     Start-Operation 'Detecção de jogos' $psExe @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $gameScan) -GameLibrary
+    Update-Library
+}
+$ui.FindGames.Add_Click({ Scan-GameLibrary })
+$ui.LibrarySearch.Add_TextChanged({ Update-Library })
+$ui.LibraryTiles.AddHandler([Windows.Controls.Primitives.ButtonBase]::ClickEvent, [Windows.RoutedEventHandler]{
+    param($sender, $eventArgs)
+    $selected = $eventArgs.OriginalSource.Tag
+    if (!$selected.Target -or $state.Job) { return }
+    if (![IO.Directory]::Exists($selected.Folder)) {
+        Scan-GameLibrary
+        return
+    }
+    $state.SelectedGame = $selected
+    $ui.GamePath.Text = $selected.Target
+    $ui.ManualTarget.IsExpanded = $false
+    Show-ForgePage 'GamePage' -Details
+    Update-Controls
+    $ui.Status.Text = "$($selected.Name) selecionado"
 })
+$ui.ManualGame.Add_Click({
+    Show-ForgePage 'GamePage' -Details
+    $ui.ManualTarget.IsExpanded = $true
+    [void]$ui.GamePath.Focus()
+})
+$ui.BackToLibrary.Add_Click({ Show-ForgePage 'GamePage' })
 $ui.ChooseOneClick.Add_Click({
     $dialog = [Microsoft.Win32.OpenFileDialog]::new()
     $dialog.Title = 'Selecione o executável do DLSS5oneclick'
@@ -669,15 +708,17 @@ function Set-LogExpanded([bool]$Expanded) {
     $ui.ExpandLog.Content = if ($Expanded) { 'Voltar' } else { 'Ampliar' }
 }
 
-function Show-ForgePage([string]$Page) {
+function Show-ForgePage([string]$Page, [switch]$Details) {
     Set-LogExpanded $false
     foreach ($name in @('GamePage', 'PcPage', 'ToolsPage')) {
         $ui[$name].Visibility = if ($name -eq $Page) { 'Visible' } else { 'Collapsed' }
     }
-    $ui.InstallBar.Visibility = if ($Page -eq 'GamePage') { 'Visible' } else { 'Collapsed' }
-    $workWidth = if ($Page -eq 'GamePage') { 62 } else { 48 }
-    $ui.WorkColumn.Width = [Windows.GridLength]::new($workWidth, [Windows.GridUnitType]::Star)
-    $ui.ActivityColumn.Width = [Windows.GridLength]::new((100 - $workWidth), [Windows.GridUnitType]::Star)
+    $library = $Page -eq 'GamePage' -and !$Details
+    $ui.LibraryView.Visibility = if ($library) { 'Visible' } else { 'Collapsed' }
+    $ui.GameDetails.Visibility = if ($Page -eq 'GamePage' -and $Details) { 'Visible' } else { 'Collapsed' }
+    $ui.ActivityPane.Visibility = if ($library) { 'Collapsed' } else { 'Visible' }
+    [Windows.Controls.Grid]::SetColumnSpan($ui.WorkScroll, $(if ($library) { 3 } else { 1 }))
+    $ui.InstallBar.Visibility = $ui.GameDetails.Visibility
     $ui.WorkScroll.ScrollToHome()
 }
 $ui.NavGames.Add_Checked({ Show-ForgePage 'GamePage' })
@@ -738,9 +779,8 @@ $ui.ClearLog.Add_Click({
 })
 if ($appVersion -match '^\d+\.\d+\.\d+$') {
     $ui.AppUpdate.Visibility = 'Visible'
-    $ui.AppUpdateStatus.Text = "v$appVersion"
     $ui.AppUpdateButton.Add_Click({
-        if (!$updateState.Tag) { Start-UpdateCheck; return }
+        if (!$updateState.Tag) { Start-UpdateCheck -Manual; return }
         Start-Operation "Atualização $($updateState.Tag)" $psExe @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $updateScript,
             '-Action', 'Stage', '-Executable', $forge, '-CurrentVersion', $appVersion, '-ReleaseTag', $updateState.Tag)
     })
@@ -758,15 +798,13 @@ if ($appVersion -match '^\d+\.\d+\.\d+$') {
         $check.Process.Dispose()
         $updateState.Check = $null
         $updateState.Tag = ''
-        $ui.AppUpdateStatus.ToolTip = $null
         if ($code -eq 0 -and $tag -match '^v\d+\.\d+\.\d+$') {
             $updateState.Tag = $tag
-            $ui.AppUpdateStatus.Text = 'Atualização disponível'
-            $ui.AppUpdateButton.Content = "Atualizar para $tag"
+            Set-AppUpdateStatus 'Atualização disponível' 'Accent'
+        } elseif ($code -eq 0) {
+            Set-AppUpdateStatus $(if ($updateState.ManualCheck) { 'Versão atual' } else { '' })
         } else {
-            $ui.AppUpdateButton.Content = 'Verificar atualização'
-            $ui.AppUpdateStatus.Text = if ($code -eq 0) { "v$appVersion · atualizada" } else { 'Falha ao verificar atualização' }
-            if ($code -ne 0) { $ui.AppUpdateStatus.ToolTip = $check.ErrorOutput.Result.Trim() }
+            Set-AppUpdateStatus 'Falha na verificação' 'Warning' $check.ErrorOutput.Result.Trim()
         }
         Update-Controls
     })
@@ -790,7 +828,18 @@ if ([IO.File]::Exists($oneClickPreference)) {
     }
 }
 $ui.GamePath.Text = $Path
-if ($Path) { $ui.ManualTarget.IsExpanded = $true }
+if ($Path) {
+    Show-ForgePage 'GamePage' -Details
+    $ui.ManualTarget.IsExpanded = $true
+} else { Show-ForgePage 'GamePage' }
+$firstScan = [Windows.Threading.DispatcherTimer]::new()
+$firstScan.Interval = [TimeSpan]::FromMilliseconds(200)
+$firstScan.Add_Tick({
+    if ($state.Job) { return }
+    $firstScan.Stop()
+    Scan-GameLibrary
+})
+$window.Add_ContentRendered({ $firstScan.Start() })
 $ui.Status.Text = 'Pronto'
 Update-Controls
 [void]$window.ShowDialog()

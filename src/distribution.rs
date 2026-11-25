@@ -24,7 +24,6 @@ pub fn prepare_ui() -> io::Result<PathBuf> {
         ("update-app.ps1", include_bytes!("../tools/update-app.ps1")),
         ("TaskbarIdentity.cs", include_bytes!("../tools/TaskbarIdentity.cs")),
         ("gui.xaml", include_bytes!("../tools/gui.xaml")),
-        ("game-library.xaml", include_bytes!("../tools/game-library.xaml")),
         ("find-games.ps1", include_bytes!("../tools/find-games.ps1")),
         ("fetch-dlss5.ps1", include_bytes!("../tools/fetch-dlss5.ps1")),
         ("fetch-runtime.ps1", include_bytes!("../tools/fetch-runtime.ps1")),

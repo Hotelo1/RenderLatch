@@ -6,7 +6,16 @@ RenderLatch is a Windows desktop tool for configuring NVIDIA DLSS Neural Renderi
 
 [Download for Windows x64](https://github.com/Hotelo1/RenderLatch/releases/latest/download/RenderLatch-windows-x64.exe) · [Release notes and checksums](https://github.com/Hotelo1/RenderLatch/releases)
 
-![RenderLatch previewing a DirectX 12 graphics profile for PEAK](assets/renderlatch-preview.png)
+![RenderLatch game library showing installed Steam games with cover art](assets/renderlatch-preview.png)
+
+<details>
+<summary>Diagnostics and tools screenshots</summary>
+
+![RenderLatch Diagnostics tab with hardware, performance plan, and compatibility actions](assets/renderlatch-diagnostics.png)
+
+![RenderLatch Tools tab showing the graphics kit, NVIDIA model import, and DLSS5oneclick settings](assets/renderlatch-tools.png)
+
+</details>
 
 ## What you can do
 
@@ -34,7 +43,7 @@ Compatibility varies by game, rendering API, GPU, and other installed mods. Use 
 1. Download **RenderLatch-windows-x64.exe** from Releases and double-click it. The app runs without a separate install or source checkout.
 2. Open **Ferramentas** (**Tools**) and choose **Baixar kit completo** (**Download complete kit**). A single operation prepares OptiScaler, NVIDIA Streamline, the NVIDIA-signed neural rendering model, and DLSS5oneclick. Allow roughly 700 MB for a first download. Activity shows each stage, and retries reuse verified downloads.
 3. Wait for **Kit completo pronto para usar**. RenderLatch uses the installed DLSS5oneclick automatically. The model archive comes from the [RankFTW release mirror](https://github.com/RankFTW/rhi-repo/releases/tag/dlssnr-310.9.16-nvidia). RenderLatch verifies its archive checksum and the NVIDIA signature on the DLL. **Importar modelo NVIDIA…** lets you supply your own signed copy.
-4. Open **Jogos** (**Games**) and choose **Detectar jogos** (**Find games**). If your game is missing, expand **Selecionar manualmente** (**Select manually**) and browse to the game's folder or actual executable.
+4. Open **Jogos** (**Games**) to browse automatically detected Steam, Epic Games, and GOG installations. Search by game or store and select a card to open its settings. Steam covers come from the local library cache or Steam's CDN. A game without a cover shows its executable icon when the launcher provides the executable path. Use **Atualizar lista** (**Refresh list**) to rescan, or **Selecionar manualmente** (**Select manually**) to browse to an unlisted game.
 5. Review the route and choose the desired graphics settings. Select **Ver prévia** (**Preview**) and review the **Atividade** (**Activity**) panel. **Ampliar** expands the log.
 6. Close the game, choose **Aplicar instalação** (**Apply installation**), and reopen the game. New OptiScaler installations start with DLSS 5 Neural Rendering and Frame Generation disabled. Press **Insert** in the game to activate either feature. A Frame Generation backend selected in RenderLatch is prepared for manual activation.
 
@@ -42,7 +51,7 @@ The desktop UI is currently in Brazilian Portuguese. The steps above give the co
 
 ### Update RenderLatch
 
-Version 0.1.12 and later check GitHub Releases when the app opens and every 15 minutes while it is open. When a newer stable version is available, the sidebar shows **Atualização disponível** (**Update available**). Click **Atualizar para v…** to download the new executable, verify its SHA-256, replace the copy you opened, and restart RenderLatch. The executable's folder must be writable. Earlier versions require a one-time manual download from Releases.
+Version 0.1.12 and later check GitHub Releases when the app opens and every 15 minutes while it is open. When a newer stable version is available, the sidebar shows **Atualização disponível** (**Update available**). Click the update button to download the new executable, verify its SHA-256, replace the copy you opened, and restart RenderLatch. The executable's folder must be writable. Earlier versions require a one-time manual download from Releases.
 
 ### Verify a download
 

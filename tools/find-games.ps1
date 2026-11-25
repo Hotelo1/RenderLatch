@@ -26,7 +26,7 @@ function Read-RegistryValue([string]$Key, [string]$Name) {
     if ($entry) { $entry.$Name }
 }
 
-function New-Game([string]$Name, [string]$Store, [string]$Folder, [string]$Launch = '') {
+function New-Game([string]$Name, [string]$Store, [string]$Folder, [string]$Launch = '', [string]$Cover = '') {
     if ([string]::IsNullOrWhiteSpace($Name) -or -not [IO.Directory]::Exists($Folder)) { return }
     try {
         $folderPath = [IO.Path]::GetFullPath($Folder)
@@ -47,7 +47,7 @@ function New-Game([string]$Name, [string]$Store, [string]$Folder, [string]$Launc
             # Keep the folder as the selectable target when a launcher hint is invalid.
         }
     }
-    [pscustomobject]@{ Name = $Name.Trim(); Store = $Store; Folder = $folderPath; Target = $selected }
+    [pscustomobject]@{ Name = $Name.Trim(); Store = $Store; Folder = $folderPath; Target = $selected; Cover = $Cover }
 }
 
 function Find-SteamGames {
@@ -70,7 +70,22 @@ function Find-SteamGames {
                     continue
                 }
                 $folder = Join-Path $apps ('common\' + $fields.installdir)
-                New-Game $fields.name 'Steam' $folder
+                $appId = $manifest.BaseName.Substring('appmanifest_'.Length)
+                $cover = ''
+                if ($appId -match '^\d+$') {
+                    $cache = Join-Path $base 'appcache\librarycache'
+                    foreach ($candidate in @((Join-Path $cache "$appId\library_600x900.jpg"), (Join-Path $cache "${appId}_library_600x900.jpg"))) {
+                        if ([IO.File]::Exists($candidate)) { $cover = $candidate; break }
+                    }
+                    if (!$cover) {
+                        $portrait = Get-ChildItem -LiteralPath (Join-Path $cache $appId) -Directory -ErrorAction SilentlyContinue |
+                            ForEach-Object { Get-Item -LiteralPath (Join-Path $_.FullName 'library_600x900.jpg') -ErrorAction SilentlyContinue } |
+                            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+                        if ($portrait) { $cover = $portrait.FullName }
+                    }
+                    if (!$cover) { $cover = "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/$appId/library_600x900.jpg" }
+                }
+                New-Game $fields.name 'Steam' $folder -Cover $cover
             }
         }
     }
