@@ -976,6 +976,8 @@ fn usage() {
     println!("    --upscaler <auto|dlss|fsr3|fsr4|xess>    OptiScaler em DX12");
     println!("    --framegen <off|dlss|fsr3|fsr4|xess>      saída de Frame Generation em DX12");
     println!("    --fg-input <auto|upscaler|dlssg|fsrfg|fsrfg30>");
+    println!("    --optical-f5            entrada óptica e Frame Generation (jogos Windows x64)");
+    println!("    --optical-generator     auto | dlss | fsr | xess | tensor");
     println!("    --route                 identifica a rota de instalação sem alterar arquivos");
     println!("    --in-game-menu          prepara o overlay completo do OptiScaler em DX12");
     println!("    {}  caminho do instalador externo (ou tools\\dlss5oneclick.exe)", pad("--oneclick EXE", 20));
@@ -1025,6 +1027,45 @@ pub fn cmd(args: &[String]) -> i32 {
         return 2;
     };
     let dest = exe.parent().unwrap_or(&game);
+    let optical_record = dest.join(MARK).join("optical-f5").join("files.txt").is_file();
+    if optical_record && has(args, "--route") {
+        println!("optical-installed");
+        return 0;
+    }
+    if has(args, "--optical-f5") || optical_record && has(args, "--undo") {
+        let action = if has(args, "--undo") { "Undo" }
+            else if has(args, "--yes") && !has(args, "--dry-run") { "Apply" } else { "Preview" };
+        if action != "Preview" {
+            if let Err(e) = require_game_closed(&exe) { eprintln!("{e}"); return 2; }
+        }
+        let script = match crate::distribution::prepare_ui() {
+            Ok(gui) => gui.with_file_name("optical-f5.ps1"),
+            Err(e) => { eprintln!("Falha ao preparar instalador: {e}"); return 2; }
+        };
+        let mut cmd = Command::new("powershell.exe");
+        cmd.env_remove("PSModulePath").args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"]).arg(script)
+            .arg("-GameExe").arg(&exe).arg("-Action").arg(action)
+            .arg("-Generator").arg(val(args, "--optical-generator").unwrap_or("auto"));
+        if action != "Undo" {
+            let image = read_head(&exe, 128 * 1024 * 1024);
+            let unity = read_head(&dest.join("UnityPlayer.dll"), 64 * 1024 * 1024);
+            if let Some(proxy) = ["dxgi.dll", "winmm.dll", "version.dll"].into_iter().find(|name|
+                !dest.join(name).exists() && (has_bytes(&image, name) || has_bytes(&unity, name))) {
+                cmd.arg("-PreferredProxy").arg(proxy);
+            }
+        }
+        if let Some(model) = kit_dir(args).map(|kit| kit.join("nvngx_dlssnr.dll")).filter(|p| p.is_file()) {
+            cmd.arg("-Model").arg(model);
+        }
+        return match cmd.status() {
+            Ok(status) => status.code().unwrap_or(2),
+            Err(e) => { eprintln!("Falha ao executar instalador: {e}"); 2 }
+        };
+    }
+    if optical_record && !has(args, "--restore-resolution") {
+        eprintln!("O perfil Optical F5Low está instalado. Remova-o antes de aplicar outra rota.");
+        return 2;
+    }
     if has(args, "--restore-resolution") {
         if has(args, "--dry-run") || has(args, "--yes") || has(args, "--undo") || has(args, "--optimize") {
             eprintln!("Use --restore-resolution como ação separada.");

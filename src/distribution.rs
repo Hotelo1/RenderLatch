@@ -19,6 +19,7 @@ pub fn prepare_ui() -> io::Result<PathBuf> {
     let tools = root.join("tools");
     fs::create_dir_all(&tools)?;
     let files: &[(&str, &[u8])] = &[
+        ("optical-f5.ps1", include_bytes!("../tools/optical-f5.ps1")),
         ("gui.ps1", include_bytes!("../tools/gui.ps1")),
         ("TaskbarIdentity.cs", include_bytes!("../tools/TaskbarIdentity.cs")),
         ("gui.xaml", include_bytes!("../tools/gui.xaml")),

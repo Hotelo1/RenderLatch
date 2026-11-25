@@ -445,6 +445,17 @@
                                     <TextBlock x:Name="RouteSummary" Foreground="{StaticResource Accent}" FontSize="12" FontWeight="SemiBold"
                                                TextWrapping="Wrap" Margin="0,5,0,0"/>
                                     <TextBlock x:Name="OptiOptionsHint" Style="{StaticResource Caption}" Margin="0,7,0,0"/>
+                                    <CheckBox x:Name="OpticalF5" Content="Usar Optical F5Low" IsChecked="True" Margin="0,12,0,4"/>
+                                    <StackPanel x:Name="OpticalOptions" Margin="0,4,0,4">
+                                        <Label Content="Gerador de quadros" Target="{Binding ElementName=OpticalGenerator}" Style="{StaticResource FieldLabel}"/>
+                                        <ComboBox x:Name="OpticalGenerator" SelectedIndex="0">
+                                            <ComboBoxItem Content="Automático para a GPU" Tag="auto"/>
+                                            <ComboBoxItem Content="NVIDIA DLSS Frame Generation" Tag="dlss"/>
+                                            <ComboBoxItem Content="AMD FSR Frame Generation" Tag="fsr"/>
+                                            <ComboBoxItem Content="Intel Xe Frame Generation" Tag="xess"/>
+                                            <ComboBoxItem Content="F5Low XeFG Tensor (NVIDIA)" Tag="tensor"/>
+                                        </ComboBox>
+                                    </StackPanel>
                                     <CheckBox x:Name="UseInGameMenu" Content="Adicionar menu OptiScaler ao Feeder"
                                               Visibility="Collapsed" Margin="0,12,0,0"/>
                                     <StackPanel x:Name="OptiOptions" Visibility="Collapsed" Margin="0,14,0,0">

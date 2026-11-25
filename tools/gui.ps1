@@ -37,7 +37,7 @@ foreach ($name in @('NavGames', 'NavPc', 'NavTools', 'WorkScroll', 'WorkColumn',
         'GameSelection', 'SelectionHint', 'RouteSummary', 'OptiOptions', 'OptiOptionsHint', 'OneClickStatus', 'KitStatus',
         'AppLogo', 'ManualTarget', 'GamePath', 'Browse', 'BrowseExe', 'FindGames', 'ChooseOneClick', 'OneClickReleases', 'UseFeeder',
         'InstallBar', 'InstallTitle', 'GameHint', 'Preview', 'Apply', 'Inventory', 'Undo', 'Optimize', 'RestoreResolution',
-        'Upscaler', 'FrameGen', 'FrameGenSource', 'FrameGenInput', 'UseInGameMenu', 'Detect', 'Plan', 'Doctor',
+        'OpticalF5', 'OpticalOptions', 'OpticalGenerator', 'Upscaler', 'FrameGen', 'FrameGenSource', 'FrameGenInput', 'UseInGameMenu', 'Detect', 'Plan', 'Doctor',
         'Download', 'ImportModel', 'DeveloperTools', 'Build', 'Menu', 'ActivityPane', 'Activity', 'OperationCard', 'OperationTitle', 'OperationResult',
         'ExpandLog', 'CopyLog', 'ClearLog', 'Status', 'Progress')) {
     $ui[$name] = $window.FindName($name)
@@ -139,6 +139,17 @@ function Update-Controls {
         'pending' { 'Identificando o jogo…' }
         default { if ($hasPath -and $hasForge) { 'Compatibilidade ainda não identificada' } }
     }
+    $optical = $ui.OpticalF5.IsChecked -or $state.Route -eq 'optical-installed'
+    $ui.OpticalF5.IsEnabled = -not $busy -and $state.Route -ne 'optical-installed'
+    $ui.OpticalOptions.Visibility = if ($optical) { 'Visible' } else { 'Collapsed' }
+    $ui.OpticalGenerator.IsEnabled = -not $busy
+    if ($optical) {
+        $ui.RouteSummary.Text = 'OptiScaler F5 · entrada óptica'
+        $ui.OptiOptionsHint.Text = 'Para jogos Windows x64 em DX11, DX12 ou Vulkan. Ative Frame Generation com Insert dentro do jogo. A compatibilidade varia por jogo e GPU.'
+        $ui.UseInGameMenu.Visibility = $ui.OptiOptions.Visibility = 'Collapsed'
+        $ui.UseFeeder.IsEnabled = $false
+        if ($state.Route -eq 'optical-installed') { $ui.Optimize.IsEnabled = $false }
+    }
     $ui.RouteSummary.Visibility = if ($ui.RouteSummary.Text) { 'Visible' } else { 'Collapsed' }
     $ui.OptiOptionsHint.Visibility = if ($ui.OptiOptionsHint.Text) { 'Visible' } else { 'Collapsed' }
     $ui.GameSelection.Text = if ($state.SelectedGame) {
@@ -168,6 +179,8 @@ function Update-Controls {
         'Confira a atividade e feche o jogo antes de aplicar.'
     } elseif ($state.Route -eq 'pending') {
         'Verificando a rota de instalação…'
+    } elseif ($optical) {
+        'Confira a prévia do Optical F5Low para o executável selecionado.'
     } elseif (($ui.UseFeeder.IsChecked -or $state.Route -like 'feeder*') -and -not $oneClick) {
         'Em Ferramentas, baixe o kit completo para usar o Feeder.'
     } elseif ($state.Route -like 'feeder*') {
@@ -304,8 +317,9 @@ $timer.Add_Tick({
     if ($job.RoutePath) {
         if ($job.RoutePath -eq $ui.GamePath.Text.Trim()) {
             $route = $job.Output.ToString().Trim()
-            $state.Route = if ($code -eq 0 -and $route -in @('feeder', 'feeder-new', 'feeder-dx11', 'feeder-ats-dx11', 'feeder-ats-overlay', 'feeder-unknown-api', 'feeder-overlay', 'feeder-overlay-dx11', 'opti', 'opti-dx11')) { $route } else { '' }
+            $state.Route = if ($code -eq 0 -and $route -in @('optical-installed', 'feeder', 'feeder-new', 'feeder-dx11', 'feeder-ats-dx11', 'feeder-ats-overlay', 'feeder-unknown-api', 'feeder-overlay', 'feeder-overlay-dx11', 'opti', 'opti-dx11')) { $route } else { '' }
         }
+        if ($state.Route -eq 'optical-installed') { $ui.OpticalF5.IsChecked = $true }
         Update-Controls
         return
     }
@@ -463,6 +477,10 @@ function Invoke-GameOperation([string]$Action) {
             if ($frameGen -ne 'off') { $gameArgs += @('--fg-input', $ui.FrameGenInput.SelectedItem.Tag) }
         }
     }
+    $optical = $ui.OpticalF5.IsChecked -or $state.Route -eq 'optical-installed'
+    if ($optical -and $Action -in @('Preview','Apply')) {
+        $gameArgs = @('dlss5','--game',$target,'--optical-f5','--optical-generator',$ui.OpticalGenerator.SelectedItem.Tag)
+    }
     switch ($Action) {
         'Inventory' { Start-Operation 'Inventário de DLLs' $forge @('dlls', '--game', $target) }
         'Preview' {
@@ -475,7 +493,9 @@ function Invoke-GameOperation([string]$Action) {
                 Show-Error 'Gere uma nova prévia para esta pasta antes de aplicar.'
                 return
             }
-            $message = if ($useOverlay -and $state.Route -in @('feeder', 'feeder-dx11', 'feeder-ats-dx11', 'feeder-overlay', 'feeder-overlay-dx11', 'feeder-ats-overlay')) {
+            $message = if ($optical) {
+                'Aplicar Optical F5Low ao executável selecionado? Feche o jogo antes de continuar.'
+            } elseif ($useOverlay -and $state.Route -in @('feeder', 'feeder-dx11', 'feeder-ats-dx11', 'feeder-overlay', 'feeder-overlay-dx11', 'feeder-ats-overlay')) {
                 'Preparar o menu do OptiScaler no jogo? O Forge guarda o RenoDX para poder restaurá-lo. Feche o jogo antes de continuar.'
             } else {
                 'Aplicar a instalação da prévia? Feche o jogo antes de continuar.'
@@ -494,7 +514,9 @@ function Invoke-GameOperation([string]$Action) {
             Start-Operation 'Restauração da resolução' $forge @('dlss5', '--game', $target, '--restore-resolution')
         }
         'Undo' {
-            $message = if ($state.Route -in @('feeder-overlay', 'feeder-overlay-dx11', 'feeder-ats-overlay')) {
+            $message = if ($state.Route -eq 'optical-installed') {
+                'Remover Optical F5Low e restaurar a configuração anterior?'
+            } elseif ($state.Route -in @('feeder-overlay', 'feeder-overlay-dx11', 'feeder-ats-overlay')) {
                 'Remover o menu OptiScaler e voltar ao RenoDX no Feeder?'
             } else {
                 'Remover a instalação do jogo? Na rota Feeder, o DLSS5oneclick remove os componentes neurais e pode manter o ReShade.'
@@ -552,6 +574,9 @@ $ui.OneClickReleases.Add_Click({
 foreach ($name in @('Upscaler', 'FrameGen', 'FrameGenInput')) {
     $ui[$name].Add_SelectionChanged({ $state.PreviewedPath = $null; Update-Controls })
 }
+$ui.OpticalF5.Add_Checked({ $state.PreviewedPath = $null; Update-Controls })
+$ui.OpticalF5.Add_Unchecked({ $state.PreviewedPath = $null; Update-Controls })
+$ui.OpticalGenerator.Add_SelectionChanged({ $state.PreviewedPath = $null; Update-Controls })
 $ui.UseInGameMenu.Add_Checked({ $state.PreviewedPath = $null; Update-Controls })
 $ui.UseInGameMenu.Add_Unchecked({ $state.PreviewedPath = $null; Update-Controls })
 $ui.UseFeeder.Add_Checked({ $state.PreviewedPath = $null; Schedule-RouteCheck })
