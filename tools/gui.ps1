@@ -85,7 +85,7 @@ function Update-Controls {
     foreach ($name in @('Inventory', 'Undo', 'Optimize', 'RestoreResolution')) {
         $ui[$name].IsEnabled = $hasForge -and $hasPath -and -not $busy
     }
-    $ui.Preview.IsEnabled = $hasForge -and $hasPath -and -not $busy -and $state.Route -ne 'pending'
+    $ui.Preview.IsEnabled = $hasForge -and $hasPath -and -not $busy -and $state.Route -notin @('pending', 'feeder-ats-recovery')
     $ui.Apply.IsEnabled = $ui.Preview.IsEnabled -and $null -ne $state.PreviewedPath
     $ui.UseInGameMenu.Visibility = if ($state.Route -in @('feeder', 'feeder-dx11')) { 'Visible' } else { 'Collapsed' }
     $ui.UseInGameMenu.IsEnabled = -not $busy -and $state.Route -in @('feeder', 'feeder-dx11')
@@ -94,6 +94,8 @@ function Update-Controls {
     $ui.OptiOptionsHint.Text = switch ($state.Route) {
         'feeder-new' { 'Primeiro, confira a prévia e aplique o Feeder. O menu do OptiScaler fica disponível em jogos compatíveis com DirectX 11 ou 12.' }
         'feeder-dx11' { 'DirectX 11 detectado. Marque o menu para configurar upscaling e Frame Generation via OptiFG.' }
+        'feeder-ats-dx11' { 'Para evitar travamentos no American Truck Simulator em DX11, use o Feeder e abra o ReShade com Home.' }
+        'feeder-ats-recovery' { 'Feche o jogo e use Desfazer instalação para restaurar o Feeder com ReShade.' }
         'feeder-unknown-api' { 'Feeder instalado. Abra e feche o jogo em DirectX 11 ou 12 e selecione o jogo novamente.' }
         'feeder' {
             if ($showOpti) { 'O Forge prepara o overlay no Feeder. Abra com Insert dentro do jogo.' }
@@ -123,6 +125,8 @@ function Update-Controls {
     $ui.OneClickStatus.ToolTip = $oneClick
     $ui.RouteSummary.Text = switch ($state.Route) {
         'feeder-new' { 'Feeder · primeira instalação' }
+        'feeder-ats-dx11' { 'Feeder · DirectX 11' }
+        'feeder-ats-recovery' { 'Feeder · restauração necessária' }
         'feeder-dx11' { 'Feeder · DirectX 11' }
         'feeder-unknown-api' { 'Feeder · API a confirmar' }
         'feeder-overlay-dx11' { 'Feeder + OptiScaler · DirectX 11' }
@@ -298,7 +302,7 @@ $timer.Add_Tick({
     if ($job.RoutePath) {
         if ($job.RoutePath -eq $ui.GamePath.Text.Trim()) {
             $route = $job.Output.ToString().Trim()
-            $state.Route = if ($code -eq 0 -and $route -in @('feeder', 'feeder-new', 'feeder-dx11', 'feeder-unknown-api', 'feeder-overlay', 'feeder-overlay-dx11', 'opti', 'opti-dx11')) { $route } else { '' }
+            $state.Route = if ($code -eq 0 -and $route -in @('feeder', 'feeder-new', 'feeder-dx11', 'feeder-ats-dx11', 'feeder-ats-recovery', 'feeder-unknown-api', 'feeder-overlay', 'feeder-overlay-dx11', 'opti', 'opti-dx11')) { $route } else { '' }
         }
         Update-Controls
         return
@@ -488,7 +492,7 @@ function Invoke-GameOperation([string]$Action) {
             Start-Operation 'Restauração da resolução' $forge @('dlss5', '--game', $target, '--restore-resolution')
         }
         'Undo' {
-            $message = if ($state.Route -in @('feeder-overlay', 'feeder-overlay-dx11')) {
+            $message = if ($state.Route -in @('feeder-overlay', 'feeder-overlay-dx11', 'feeder-ats-recovery')) {
                 'Remover o menu OptiScaler e voltar ao RenoDX no Feeder?'
             } else {
                 'Remover a instalação do jogo? Na rota Feeder, o DLSS5oneclick remove os componentes neurais e pode manter o ReShade.'

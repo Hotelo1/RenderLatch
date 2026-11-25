@@ -1069,8 +1069,14 @@ pub fn cmd(args: &[String]) -> i32 {
     let force = has(args, "--force");
     let installed_opti = dest.join(MARK).join("install.txt").is_file();
     let use_feeder = feeder_selected || (!has_native && !force && !installed_opti);
+    // Prism3D stalls with the DX11 ReShade/OptiScaler hybrid in American Truck Simulator.
+    let ats_dx11 = use_feeder && oneclick_installed
+        && exe.file_name().is_some_and(|name| name.eq_ignore_ascii_case("amtrucks.exe"))
+        && matches!(feeder_graphics_api(&exe, dest), "DX11" | "DX11 (Unity)");
     if has(args, "--route") {
-        let route = if hybrid_installed && has(args, "--route-details") && matches!(feeder_graphics_api(&exe, dest), "DX11" | "DX11 (Unity)") {
+        let route = if ats_dx11 && has(args, "--route-details") {
+            if hybrid_installed { "feeder-ats-recovery" } else { "feeder-ats-dx11" }
+        } else if hybrid_installed && has(args, "--route-details") && matches!(feeder_graphics_api(&exe, dest), "DX11" | "DX11 (Unity)") {
             "feeder-overlay-dx11"
         } else if hybrid_installed {
             "feeder-overlay"
@@ -1093,6 +1099,13 @@ pub fn cmd(args: &[String]) -> i32 {
         };
         println!("{route}");
         return 0;
+    }
+    if ats_dx11 && (menu_requested || hybrid_installed) {
+        eprintln!("No American Truck Simulator em DX11, o menu OptiScaler pode travar a inicialização. Use o Feeder com ReShade.");
+        if hybrid_installed {
+            eprintln!("Use Desfazer instalação para restaurar o Feeder.");
+        }
+        return 2;
     }
     let feeder_overlay = oneclick_installed && (menu_requested || hybrid_installed);
     if use_feeder && !feeder_overlay {
