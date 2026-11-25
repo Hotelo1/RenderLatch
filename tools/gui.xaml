@@ -353,6 +353,10 @@
                     <StackPanel>
                         <TextBlock Text="Kit OptiScaler" Style="{StaticResource Caption}" FontSize="12"/>
                         <TextBlock x:Name="KitStatus" FontSize="13" FontWeight="SemiBold" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                        <StackPanel x:Name="AppUpdate" Visibility="Collapsed" Margin="0,14,0,0">
+                            <TextBlock x:Name="AppUpdateStatus" Style="{StaticResource Caption}" FontSize="12" Margin="0,0,0,5"/>
+                            <Button x:Name="AppUpdateButton" Content="Verificar atualização" Padding="6,7"/>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
                 <StackPanel>

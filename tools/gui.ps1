@@ -15,6 +15,7 @@ $buildScript = Join-Path $root 'build.ps1'
 $kitScript = Join-Path $PSScriptRoot 'fetch-dlss5.ps1'
 $menuScript = Join-Path $PSScriptRoot 'menu.ps1'
 $gameScan = Join-Path $PSScriptRoot 'find-games.ps1'
+$updateScript = Join-Path $PSScriptRoot 'update-app.ps1'
 $libraryLayout = Join-Path $PSScriptRoot 'game-library.xaml'
 $runtimeFolder = if ($RuntimeRoot) { $RuntimeRoot } else { Join-Path $root 'runtime' }
 $kitFolder = Join-Path $runtimeFolder 'dlss5'
@@ -23,6 +24,10 @@ $defaultOneClick = Join-Path $PSScriptRoot 'dlss5oneclick.exe'
 $oneClickPreference = Join-Path $env:LOCALAPPDATA 'RenderLatch\oneclick-path.txt'
 $psExe = Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe'
 $state = @{ Job = $null; PreviewedPath = $null; OneClick = $null; SelectedGame = $null; Route = '' }
+$appVersion = if ($Standalone -and [IO.File]::Exists($forge)) {
+    [Diagnostics.FileVersionInfo]::GetVersionInfo($forge).ProductVersion
+}
+$updateState = @{ Check = $null; Tag = ''; NextCheck = [datetime]::MinValue }
 
 try {
     $xaml = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'gui.xaml'))
@@ -39,7 +44,7 @@ foreach ($name in @('NavGames', 'NavPc', 'NavTools', 'WorkScroll', 'WorkColumn',
         'InstallBar', 'InstallTitle', 'GameHint', 'Preview', 'Apply', 'Inventory', 'Undo', 'Optimize', 'RestoreResolution',
         'OpticalF5', 'OpticalOptions', 'OpticalGenerator', 'Upscaler', 'FrameGen', 'FrameGenSource', 'FrameGenInput', 'UseInGameMenu', 'Detect', 'Plan', 'Doctor',
         'Download', 'ImportModel', 'DeveloperTools', 'Build', 'Menu', 'ActivityPane', 'Activity', 'OperationCard', 'OperationTitle', 'OperationResult',
-        'ExpandLog', 'CopyLog', 'ClearLog', 'Status', 'Progress')) {
+        'ExpandLog', 'CopyLog', 'ClearLog', 'Status', 'Progress', 'AppUpdate', 'AppUpdateButton', 'AppUpdateStatus')) {
     $ui[$name] = $window.FindName($name)
 }
 
@@ -66,6 +71,7 @@ function Get-OneClickPath {
 
 function Update-Controls {
     $busy = $null -ne $state.Job
+    $ui.AppUpdateButton.IsEnabled = !$busy -and !$updateState.Check
     $hasForge = [IO.File]::Exists($forge)
     $hasPath = -not [string]::IsNullOrWhiteSpace($ui.GamePath.Text)
     $kitFiles = @('dlss5\OptiScaler.dll', 'dlss5\OptiScaler.ini', 'dlss5\nvngx.dll_dlssnr.dll', 'dlss5\nvngx_dlssnr.dll',
@@ -218,6 +224,55 @@ function Join-WindowsArguments([string[]]$ArgumentList) {
     }) -join ' '
 }
 
+function Start-UpdateCheck {
+    if ($updateState.Check -or $state.Job) { return }
+    $updateState.NextCheck = [datetime]::UtcNow.AddMinutes(15)
+    $ui.AppUpdateStatus.Text = "v$appVersion · verificando…"
+    $ui.AppUpdateButton.IsEnabled = $false
+    $info = [Diagnostics.ProcessStartInfo]::new()
+    $info.FileName = $psExe
+    $info.Arguments = Join-WindowsArguments @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $updateScript,
+        '-Action', 'Check', '-Executable', $forge, '-CurrentVersion', $appVersion)
+    $info.UseShellExecute = $false
+    $info.CreateNoWindow = $true
+    $info.RedirectStandardOutput = $true
+    $info.RedirectStandardError = $true
+    $info.StandardOutputEncoding = [Text.Encoding]::UTF8
+    $info.StandardErrorEncoding = [Text.Encoding]::UTF8
+    try {
+        $process = [Diagnostics.Process]::Start($info)
+        $updateState.Check = @{
+            Process = $process
+            Output = $process.StandardOutput.ReadToEndAsync()
+            ErrorOutput = $process.StandardError.ReadToEndAsync()
+        }
+    } catch {
+        $ui.AppUpdateStatus.Text = 'Falha ao verificar atualização'
+        $ui.AppUpdateStatus.ToolTip = $_.Exception.GetBaseException().Message
+        Update-Controls
+    }
+}
+
+function Complete-UpdateDownload([string]$Output) {
+    $pending = $Output | ConvertFrom-Json
+    $info = [Diagnostics.ProcessStartInfo]::new()
+    $info.FileName = $psExe
+    $info.Arguments = Join-WindowsArguments @('-NoProfile', '-NonInteractive', '-STA', '-ExecutionPolicy', 'Bypass', '-File', $updateScript,
+        '-Action', 'Replace', '-Executable', $forge, '-CurrentVersion', $appVersion,
+        '-ReleaseTag', $updateState.Tag, '-StagedFile', $pending.Path, '-ExpectedHash', $pending.Hash,
+        '-GuiProcessId', [string]$PID)
+    $info.UseShellExecute = $false
+    $info.CreateNoWindow = $true
+    try {
+        $helper = [Diagnostics.Process]::Start($info)
+        $helper.Dispose()
+    } catch {
+        Remove-Item -LiteralPath $pending.Path -Force -ErrorAction SilentlyContinue
+        throw
+    }
+    $window.Close()
+}
+
 function Start-Operation([string]$Label, [string]$FileName, [string[]]$ArgumentList,
         [string]$PreviewPath, [switch]$Diagnostic, [switch]$GameLibrary, [string]$RoutePath) {
     if ($null -ne $state.Job) { return }
@@ -232,7 +287,7 @@ function Start-Operation([string]$Label, [string]$FileName, [string[]]$ArgumentL
     $info.CreateNoWindow = $true
     $info.RedirectStandardOutput = $true
     $info.RedirectStandardError = $true
-    if ($FileName -eq $forge -or $GameLibrary -or $ArgumentList -contains $kitScript) {
+    if ($FileName -eq $forge -or $GameLibrary -or $ArgumentList -contains $kitScript -or $ArgumentList -contains $updateScript) {
         $info.StandardOutputEncoding = [Text.Encoding]::UTF8
         $info.StandardErrorEncoding = [Text.Encoding]::UTF8
     }
@@ -254,6 +309,7 @@ function Start-Operation([string]$Label, [string]$FileName, [string[]]$ArgumentL
         Optimization = $ArgumentList -contains '--optimize'
         GameLibrary = $GameLibrary.IsPresent
         KitDownload = $ArgumentList -contains '-Complete' -and $ArgumentList -contains $kitScript
+        AppUpdate = $ArgumentList -contains $updateScript
         RoutePath = $RoutePath
         RefreshRoute = ($FileName -eq $forge -and ($ArgumentList -contains '--yes' -or $ArgumentList -contains '--undo')) -or
             $ArgumentList -contains $buildScript
@@ -288,7 +344,7 @@ $timer.Add_Tick({
             if ($null -eq $line) {
                 $stream.Pending = $null
             } else {
-                if (($job.GameLibrary -or $job.RoutePath) -and $stream -eq $job.Streams[0]) {
+                if (($job.GameLibrary -or $job.RoutePath -or $job.AppUpdate) -and $stream -eq $job.Streams[0]) {
                     [void]$job.Output.AppendLine($line)
                 } else {
                     [void]$batch.AppendLine($line)
@@ -313,6 +369,22 @@ $timer.Add_Tick({
     $code = $job.Process.ExitCode
     $job.Process.Dispose()
     $state.Job = $null
+
+    if ($job.AppUpdate) {
+        if ($code -eq 0) {
+            try {
+                Complete-UpdateDownload $job.Output.ToString()
+            } catch {
+                Show-Error "Não foi possível iniciar a substituição do executável. $($_.Exception.GetBaseException().Message)"
+            }
+        } else {
+            $updateState.Tag = ''
+            $ui.AppUpdateButton.Content = 'Verificar atualização'
+            $ui.AppUpdateStatus.Text = 'Falha ao baixar atualização'
+            Show-Error 'O executável atual foi preservado. Veja os detalhes em Atividade.'
+        }
+        return
+    }
 
     if ($job.RoutePath) {
         if ($job.RoutePath -eq $ui.GamePath.Text.Trim()) {
@@ -664,6 +736,43 @@ $ui.ClearLog.Add_Click({
     $ui.OperationCard.Visibility = 'Collapsed'
     Update-Controls
 })
+if ($appVersion -match '^\d+\.\d+\.\d+$') {
+    $ui.AppUpdate.Visibility = 'Visible'
+    $ui.AppUpdateStatus.Text = "v$appVersion"
+    $ui.AppUpdateButton.Add_Click({
+        if (!$updateState.Tag) { Start-UpdateCheck; return }
+        Start-Operation "Atualização $($updateState.Tag)" $psExe @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $updateScript,
+            '-Action', 'Stage', '-Executable', $forge, '-CurrentVersion', $appVersion, '-ReleaseTag', $updateState.Tag)
+    })
+    $updateTimer = [Windows.Threading.DispatcherTimer]::new()
+    $updateTimer.Interval = [TimeSpan]::FromSeconds(1)
+    $updateTimer.Add_Tick({
+        $check = $updateState.Check
+        if (!$check) {
+            if ([datetime]::UtcNow -ge $updateState.NextCheck) { Start-UpdateCheck }
+            return
+        }
+        if (!$check.Process.HasExited -or !$check.Output.IsCompleted -or !$check.ErrorOutput.IsCompleted) { return }
+        $tag = $check.Output.Result.Trim()
+        $code = $check.Process.ExitCode
+        $check.Process.Dispose()
+        $updateState.Check = $null
+        $updateState.Tag = ''
+        $ui.AppUpdateStatus.ToolTip = $null
+        if ($code -eq 0 -and $tag -match '^v\d+\.\d+\.\d+$') {
+            $updateState.Tag = $tag
+            $ui.AppUpdateStatus.Text = 'Atualização disponível'
+            $ui.AppUpdateButton.Content = "Atualizar para $tag"
+        } else {
+            $ui.AppUpdateButton.Content = 'Verificar atualização'
+            $ui.AppUpdateStatus.Text = if ($code -eq 0) { "v$appVersion · atualizada" } else { 'Falha ao verificar atualização' }
+            if ($code -ne 0) { $ui.AppUpdateStatus.ToolTip = $check.ErrorOutput.Result.Trim() }
+        }
+        Update-Controls
+    })
+    $window.Add_ContentRendered({ $updateTimer.Start() })
+    $window.Add_Closed({ $updateTimer.Stop() })
+}
 $window.Add_Closing({
     if ($null -ne $state.Job) {
         $_.Cancel = $true

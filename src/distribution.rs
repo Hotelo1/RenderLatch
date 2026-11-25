@@ -21,6 +21,7 @@ pub fn prepare_ui() -> io::Result<PathBuf> {
     let files: &[(&str, &[u8])] = &[
         ("optical-f5.ps1", include_bytes!("../tools/optical-f5.ps1")),
         ("gui.ps1", include_bytes!("../tools/gui.ps1")),
+        ("update-app.ps1", include_bytes!("../tools/update-app.ps1")),
         ("TaskbarIdentity.cs", include_bytes!("../tools/TaskbarIdentity.cs")),
         ("gui.xaml", include_bytes!("../tools/gui.xaml")),
         ("game-library.xaml", include_bytes!("../tools/game-library.xaml")),

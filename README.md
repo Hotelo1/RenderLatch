@@ -40,6 +40,10 @@ Compatibility varies by game, rendering API, GPU, and other installed mods. Use 
 
 The desktop UI is currently in Brazilian Portuguese. The steps above give the corresponding English labels.
 
+### Update RenderLatch
+
+Version 0.1.12 and later check GitHub Releases when the app opens and every 15 minutes while it is open. When a newer stable version is available, the sidebar shows **Atualização disponível** (**Update available**). Click **Atualizar para v…** to download the new executable, verify its SHA-256, replace the copy you opened, and restart RenderLatch. The executable's folder must be writable. Earlier versions require a one-time manual download from Releases.
+
 ### Verify a download
 
 Download the executable and its **.sha256** file from the same release. Compare the published hash with the SHA-256 shown by PowerShell.
