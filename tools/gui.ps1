@@ -42,7 +42,7 @@ foreach ($name in @('NavGames', 'NavPc', 'NavTools', 'WorkScroll', 'GamePage', '
         'LibraryView', 'LibraryBackdrop', 'LibrarySearch', 'LibraryStatus', 'LibraryTiles', 'ManualGame', 'GameDetails', 'BackToLibrary', 'SelectedGameCover',
         'AppLogo', 'ManualTarget', 'GamePath', 'Browse', 'BrowseExe', 'FindGames', 'ChooseOneClick', 'OneClickReleases', 'UseFeeder',
         'InstallBar', 'InstallTitle', 'GameHint', 'Preview', 'Apply', 'Inventory', 'Undo', 'Optimize', 'RestoreResolution',
-        'OpticalF5', 'OpticalOptions', 'OpticalGenerator', 'Upscaler', 'FrameGen', 'FrameGenSource', 'FrameGenInput', 'UseInGameMenu', 'Detect', 'Plan', 'Doctor',
+        'OpticalF5', 'OpticalOptions', 'OpticalGenerator', 'LaunchBorderless', 'Upscaler', 'FrameGen', 'FrameGenSource', 'FrameGenInput', 'UseInGameMenu', 'Detect', 'Plan', 'Doctor',
         'Download', 'ImportModel', 'DeveloperTools', 'Build', 'Menu', 'ActivityPane', 'Activity', 'OperationCard', 'OperationTitle', 'OperationResult',
         'ExpandLog', 'CopyLog', 'ClearLog', 'Status', 'Progress', 'AppUpdate', 'AppVersion', 'AppUpdateButton', 'AppUpdateLabel', 'AppUpdateStatus')) {
     $ui[$name] = $window.FindName($name)
@@ -171,12 +171,22 @@ function Update-Controls {
     $ui.OpticalF5.IsEnabled = -not $busy -and $state.Route -ne 'optical-installed'
     $ui.OpticalOptions.Visibility = if ($optical) { 'Visible' } else { 'Collapsed' }
     $ui.OpticalGenerator.IsEnabled = -not $busy
+    $ui.LaunchBorderless.Tag = if ($state.Route -eq 'optical-installed') {
+        $target = $ui.GamePath.Text.Trim().TrimEnd('\', '/')
+        if ([IO.Directory]::Exists($target)) { $target = Join-Path $target 'TheForest.exe' }
+        if ($target -match '(?:^|[\\/])TheForest\.exe$' -and [IO.File]::Exists($target)) { $target }
+    }
+    $ui.LaunchBorderless.Visibility = if ($ui.LaunchBorderless.Tag) { 'Visible' } else { 'Collapsed' }
+    $ui.LaunchBorderless.IsEnabled = -not $busy
     if ($optical) {
         $ui.RouteSummary.Text = 'OptiScaler F5 · entrada óptica'
-        $ui.OptiOptionsHint.Text = 'Para jogos Windows x64 em DX11, DX12 ou Vulkan. Ative Frame Generation com Insert dentro do jogo. A compatibilidade varia por jogo e GPU.'
+        $ui.OptiOptionsHint.Text = 'Para jogos Windows x64 em DX11, DX12 ou Vulkan. Ative em Insert. Em DX11, salve as opções do Frame Generation e reinicie o jogo em janela ou sem bordas.'
         $ui.UseInGameMenu.Visibility = $ui.OptiOptions.Visibility = 'Collapsed'
         $ui.UseFeeder.IsEnabled = $false
         if ($state.Route -eq 'optical-installed') { $ui.Optimize.IsEnabled = $false }
+        if ($ui.LaunchBorderless.Tag) {
+            $ui.OptiOptionsHint.Text = 'Para usar Frame Generation no The Forest, abra em tela cheia sem bordas. Ative em Insert, salve e reinicie por este botão.'
+        }
     }
     $ui.RouteSummary.Visibility = if ($ui.RouteSummary.Text) { 'Visible' } else { 'Collapsed' }
     $ui.OptiOptionsHint.Visibility = if ($ui.OptiOptionsHint.Text) { 'Visible' } else { 'Collapsed' }
@@ -767,6 +777,21 @@ $ui.Preview.Add_Click({ Invoke-GameOperation 'Preview' })
 $ui.Apply.Add_Click({ Invoke-GameOperation 'Apply' })
 $ui.Undo.Add_Click({ Invoke-GameOperation 'Undo' })
 $ui.Optimize.Add_Click({ Invoke-GameOperation 'Optimize' })
+$ui.LaunchBorderless.Add_Click({
+    $target = [string]$ui.LaunchBorderless.Tag
+    if ($state.Job -or !$target) { return }
+    if (Get-Process -Name TheForest -ErrorAction SilentlyContinue) {
+        $ui.Status.Text = 'Feche o The Forest antes de abrir em tela cheia sem bordas.'
+        return
+    }
+    try {
+        $display = [Windows.Forms.Screen]::PrimaryScreen.Bounds
+        Start-Process -FilePath $target -WorkingDirectory (Split-Path -LiteralPath $target) -ArgumentList @(
+            '-popupwindow', '-screen-fullscreen', '0', '-screen-width', $display.Width, '-screen-height', $display.Height)
+    } catch {
+        Show-Error "Falha ao abrir o The Forest. $($_.Exception.GetBaseException().Message)"
+    }
+})
 $ui.RestoreResolution.Add_Click({ Invoke-GameOperation 'RestoreResolution' })
 $ui.Detect.Add_Click({ Start-Operation 'Detecção de hardware' $forge @('detect') })
 $ui.Plan.Add_Click({ Start-Operation 'Plano do PC' $forge @('plan') })

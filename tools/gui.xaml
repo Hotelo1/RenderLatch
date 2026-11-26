@@ -649,6 +649,9 @@
                                             <ComboBoxItem Content="Intel Xe Frame Generation" Tag="xess"/>
                                             <ComboBoxItem Content="F5Low XeFG Tensor (NVIDIA)" Tag="tensor"/>
                                         </ComboBox>
+                                        <Button x:Name="LaunchBorderless" Content="Jogar em tela cheia sem bordas"
+                                                HorizontalAlignment="Left" Margin="0,12,0,0" Visibility="Collapsed"
+                                                ToolTip="Abre The Forest preenchendo o monitor sem usar tela cheia exclusiva."/>
                                     </StackPanel>
                                     <CheckBox x:Name="UseInGameMenu" Content="Adicionar menu OptiScaler ao Feeder"
                                               Visibility="Collapsed" Margin="0,12,0,0"/>

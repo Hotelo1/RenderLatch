@@ -83,15 +83,29 @@ try {
         if ($product -notmatch 'OptiScaler|ReShade') { throw 'dxgi.dll pertence a outro componente. Resolva o conflito de carregadores antes de instalar.' }
     }
     $gameName = [IO.Path]::GetFileName($GameExe)
+    $isTheForest = $gameName -eq 'TheForest.exe'
     $isSonsOfTheForest = $gameName -eq 'SonsOfTheForest.exe'
+    $dx11Optical = $isTheForest
+    $log = Join-Path $game 'OptiScaler.log'
+    if (!$dx11Optical -and !$isSonsOfTheForest -and $gameName -notin @('eurotrucks2.exe', 'amtrucks.exe') -and
+        $Generator -eq 'auto' -and (Test-Path -LiteralPath $ready) -and (Test-Path -LiteralPath $log)) {
+        # Use the backend that actually presented frames, not DLL names embedded by the engine.
+        $lastBackend = Get-Content -LiteralPath $log -Tail 4096 -ErrorAction SilentlyContinue |
+            Select-String 'Native motion \((D3D11|D3D12|Vulkan)\) frames:' | Select-Object -Last 1
+        $dx11Optical = $lastBackend -and $lastBackend.Matches[0].Groups[1].Value -eq 'D3D11'
+    }
     $gpuNames = if ($Generator -eq 'auto' -or $isSonsOfTheForest) { (Get-CimInstance Win32_VideoController).Name }
     # The optical input stands aside when Unity starts calling native DLSS inside the world.
     $useDx11DlssBridge = $isSonsOfTheForest -and ($gpuNames -match '\bRTX\b')
     $output = switch ($Generator) {
+        'dlss' { if ($isTheForest) { 'dlssg' } else { 'f5low' } }
         'fsr' { 'fsrfg' }
         'xess' { 'xefg' }
         'auto' {
-            if ($gpuNames -match 'RTX (40|50)') { 'f5low' } else { 'fsrfg' }
+            if ($isTheForest -and $gpuNames -match 'RTX (40|50)') { 'dlssg' }
+            elseif ($dx11Optical) { 'xefg' }
+            elseif ($gpuNames -match 'RTX (40|50)') { 'f5low' }
+            else { 'fsrfg' }
         }
         default { 'f5low' }
     }
@@ -103,6 +117,11 @@ try {
     Write-Output "Optical F5Low 0.1.39 | $GameExe | $proxy | FGOutput=$output"
     if ($output -eq 'f5low') { Write-Output "Gerador F5Low: $engine" }
     if ($isSonsOfTheForest) { Write-Output 'Compatibilidade: overlays Steam/Epic e Steam Input bloqueados neste jogo.' }
+    if ($dx11Optical) {
+        Write-Output 'DirectX 11: entrada optica para jogos sem DLSS nativo.'
+        Write-Output "Em janela ou sem bordas, use Insert para ativar NR e Frame Generation. Confirme a saida selecionada, salve e reinicie."
+    }
+    if ($isTheForest) { Write-Output 'The Forest: o OptiScaler converte a tela cheia com Frame Generation em janela sem bordas.' }
     if ($useDx11DlssBridge) { Write-Output 'Neural Rendering: ponte DLSS DX11 (dlss_12) para o DLSS nativo durante a partida.' }
     Write-Output 'Entrada optica do OptiScaler. Ative Frame Generation pelo menu Insert dentro do jogo.'
     if ($Action -eq 'Preview') { Write-Output "Pacote de 201 MB em cache local, com backup em $store"; return }
@@ -111,6 +130,15 @@ try {
         $ini = [IO.File]::ReadAllText($iniPath)
         $ini = Set-Value $ini FrameGen FGOutput $output
         $ini = Set-Value $ini F5Low FrameGenerator $engine
+        if ($isTheForest) { $ini = Set-Value $ini XeFG ForceBorderless true }
+        if ($dx11Optical) {
+            $ini = Set-Value $ini FrameGen FGInput upscaler
+            $ini = Set-Value $ini DlssNr NativeMotion true
+            $ini = Set-Value $ini DlssNr NativeUpscaler true
+            $ini = Set-Value $ini DlssNr NativeDepthFinder true
+            $ini = Set-Value $ini DlssNr NativeInput false
+            $ini = Set-Value $ini DlssNr FinishedPicture false
+        }
         if ($isSonsOfTheForest) { $ini = Set-Value $ini Hotfix DisableOverlays true }
         if ($useDx11DlssBridge) { $ini = Set-Value $ini Upscalers Dx11Upscaler dlss_12 }
         $pending = Join-Path $store 'profile.tmp'
@@ -136,6 +164,7 @@ try {
         )) { $ini = Set-Value $ini $setting[0] $setting[1] $setting[2] }
         if ($isSonsOfTheForest) { $ini = Set-Value $ini Hotfix DisableOverlays true }
         if ($useDx11DlssBridge) { $ini = Set-Value $ini Upscalers Dx11Upscaler dlss_12 }
+        if ($isTheForest) { $ini = Set-Value $ini XeFG ForceBorderless true }
         [IO.File]::WriteAllText("$work\OptiScaler.ini",$ini)
         if (Test-Path -LiteralPath $store) {
             # No journal means staging was interrupted before any game file moved.
